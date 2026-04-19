@@ -206,7 +206,14 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",  # Vite dev
         "http://localhost:4173",  # Vite preview (prod build)
+        "http://localhost:4174",  # Secondary preview port
+        "https://peep-in-pulse.vercel.app",  # Vercel production
     ],
+    # Vercel preview deploys use dynamic subdomains
+    # (peep-in-pulse-git-<branch>-<hash>.vercel.app); the regex lets
+    # any peep-in-pulse-* preview hit the backend without per-branch
+    # config churn.
+    allow_origin_regex=r"https://peep-in-pulse-[a-z0-9-]+\.vercel\.app",
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
