@@ -60,6 +60,37 @@ _ALLOWED_SCREENERS = (
     "undervalued_large_caps",
 )
 
+# Sidebar/TickerHeader poll /proxy/price every 60 s per ticker; with N rows
+# that's N requests/min upstream. A 30 s TTL collapses most of that to cache
+# hits — price changes within 30 s aren't meaningfully useful in the UI.
+_price_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_PRICE_TTL = 30
+
+# Chart payloads (sparklines + CompareTab history) are heavier and change
+# slowly; 5 min TTL makes repeat tab/period switches instant without serving
+# noticeably stale data. Keyed by (ticker, interval, range, period1, period2).
+_chart_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_CHART_TTL = 300
+
+# Shared AsyncClient singleton so every /proxy/* endpoint reuses TCP/TLS
+# connections to Yahoo instead of paying a fresh handshake per request.
+# Built lazily on first use; closed in lifespan shutdown.
+_http_client: httpx.AsyncClient | None = None
+
+
+async def get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=40,
+            ),
+            headers=_YF_HEADERS,
+        )
+    return _http_client
+
 
 def _to_iso_z(dt: datetime) -> str:
     """Format UTC datetime as 'YYYY-MM-DDTHH:MM:SSZ'."""
@@ -161,6 +192,10 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        global _http_client
+        if _http_client is not None:
+            await _http_client.aclose()
+            _http_client = None
         _scheduler.shutdown(wait=False)
 
 
@@ -202,13 +237,23 @@ _YF_HEADERS = {
 
 @app.get("/proxy/price/{ticker}")
 async def proxy_price(ticker: str):
-    """Proxy Yahoo Finance chart endpoint to avoid browser CORS."""
+    """Proxy Yahoo Finance chart endpoint to avoid browser CORS.
+
+    30 s TTL cache so the N watchlist rows × 60 s poll don't fan out to
+    fresh Yahoo requests on every tick.
+    """
+    now = time.time()
+    cached = _price_cache.get(ticker)
+    if cached and (now - cached[0]) < _PRICE_TTL:
+        return cached[1]
+
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            url, params={"interval": "1d", "range": "5d"}, headers=_YF_HEADERS
-        )
-        return r.json()
+    client = await get_http_client()
+    r = await client.get(url, params={"interval": "1d", "range": "5d"})
+    data = r.json()
+    with _state_lock:
+        _price_cache[ticker] = (now, data)
+    return data
 
 
 @app.get("/proxy/chart/{ticker}")
@@ -225,6 +270,14 @@ async def proxy_chart(
     explicit `period1`/`period2` unix-second window. period1/period2 wins
     when both are set, supporting the Custom date-range picker.
     """
+    # Cache key: all params contribute since different params → different data.
+    # None values stringify as "None" and act as a stable sentinel for "unset".
+    cache_key = f"{ticker}|{interval}|{range}|{period1}|{period2}"
+    now = time.time()
+    cached = _chart_cache.get(cache_key)
+    if cached and (now - cached[0]) < _CHART_TTL:
+        return cached[1]
+
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
     params: dict[str, Any] = {"interval": interval}
     if period1 is not None and period2 is not None:
@@ -254,9 +307,11 @@ async def proxy_chart(
 
     logger.info("[CHART] %s params=%s", ticker, params)
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.get(url, params=params, headers=_YF_HEADERS)
-        data = r.json()
+    client = await get_http_client()
+    # Chart payloads can be large; use a generous per-request timeout override
+    # on top of the shared client's default.
+    r = await client.get(url, params=params, timeout=15.0)
+    data = r.json()
 
     # For intraday, always trim to regular session by local hour. The Yahoo
     # `includePrePost=false` flag is sometimes honored, sometimes not; this
@@ -264,6 +319,8 @@ async def proxy_chart(
     if intraday:
         _trim_to_regular_session_by_hour(data)
 
+    with _state_lock:
+        _chart_cache[cache_key] = (now, data)
     return data
 
 
@@ -515,30 +572,31 @@ async def proxy_screener(scr_id: str):
     if cached and (now - cached[0]) < _SCREENER_TTL:
         return cached[1]
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        if scr_id == "day_gainers":
-            large, small = await asyncio.gather(
-                _fetch_single_screener("day_gainers", client),
-                _fetch_single_screener("small_cap_gainers", client),
-            )
-            # Dedupe by ticker (keep first occurrence — large-cap wins ties
-            # since it comes first), then sort by changePct desc with None
-            # values pushed to the bottom.
-            seen: set[str] = set()
-            deduped: list[dict[str, Any]] = []
-            for item in large + small:
-                t = item.get("ticker")
-                if not t or t in seen:
-                    continue
-                seen.add(t)
-                deduped.append(item)
-            deduped.sort(
-                key=lambda x: x.get("changePct") or -9999,
-                reverse=True,
-            )
-            results = deduped[:15]
-        else:
-            results = (await _fetch_single_screener(scr_id, client))[:15]
+    client = await get_http_client()
+    if scr_id == "day_gainers":
+        large, small = await asyncio.gather(
+            _fetch_single_screener("day_gainers", client),
+            _fetch_single_screener("small_cap_gainers", client),
+        )
+        # Dedupe by ticker (keep first occurrence — large-cap wins ties
+        # since it comes first), then sort by changePct desc with None
+        # values pushed to the bottom.
+        seen: set[str] = set()
+        deduped: list[dict[str, Any]] = []
+        for item in large + small:
+            t = item.get("ticker")
+            if not t or t in seen:
+                continue
+            seen.add(t)
+            deduped.append(item)
+        deduped.sort(
+            key=lambda x: x.get("changePct") or -9999,
+            reverse=True,
+        )
+        results = deduped[:15]
+    else:
+        results = (await _fetch_single_screener(scr_id, client))[:15]
 
-    _screener_cache[scr_id] = (now, results)
+    with _state_lock:
+        _screener_cache[scr_id] = (now, results)
     return results
