@@ -36,6 +36,25 @@ function niceSymmetricTicks(maxAbs) {
   return [-2 * step, -step, 0, step, 2 * step];
 }
 
+// Map a classifyGrowth label → Tailwind text-color classes for the
+// side-panel Growth Status table. Mirrors the "How to read" legend hues
+// so panel and legend read as one visual system.
+function statusColorClass(label) {
+  switch (label) {
+    case "Accelerating":
+    case "Growing":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "Flat":
+      return "text-slate-500 dark:text-slate-400";
+    case "Declining":
+      return "text-amber-600 dark:text-amber-400";
+    case "Shrinking":
+      return "text-red-600 dark:text-red-400";
+    default:
+      return "text-slate-400 dark:text-slate-500";
+  }
+}
+
 // Rate comes in as a decimal from Yahoo (0.17 = 17%).
 function classifyGrowth(rate) {
   if (rate == null) return { label: "—", color: "text-slate-400 bg-slate-50" };
@@ -62,8 +81,11 @@ function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
 
   const maxAbs = Math.max(...data.map((d) => Math.abs(d.value)));
   // 5-tick "nice number" array — guarantees 0% is always a tick AND that
-  // the outer ticks land on round values (e.g. ±40 instead of ±29).
-  const xTicks = niceSymmetricTicks(maxAbs);
+  // the outer ticks land on round values (e.g. ±40 instead of ±29). The
+  // 1.3× multiplier gives the longest bar visible breathing room from the
+  // axis edge so the percentage label can sit just outside the bar without
+  // getting clipped against the plot boundary.
+  const xTicks = niceSymmetricTicks(maxAbs * 1.3);
   // Domain = outermost tick so bars fit cleanly within the axis edges.
   const domain = xTicks[xTicks.length - 1];
 
@@ -84,7 +106,7 @@ function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
           <BarChart
             data={data}
             layout="vertical"
-            margin={{ top: 10, right: 220, left: 140, bottom: 30 }}
+            margin={{ top: 10, right: 80, left: 140, bottom: 30 }}
           >
             <XAxis
               type="number"
@@ -185,69 +207,25 @@ function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
               <LabelList
                 dataKey="value"
                 content={(props) => {
-                  const { x, y, width, height, value, index } = props;
-                  if (value == null || index == null) return null;
-                  const entry = data[index];
-                  if (!entry) return null;
+                  const { x, y, width, height, value } = props;
+                  if (value == null) return null;
                   const isNegative = value < 0;
-                  const textAnchor = isNegative ? "end" : "start";
                   const pctText = `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-                  const classLabel = entry.classification.label;
-                  // Width-aware placement. On positive bars pct sits adjacent
-                  // to the bar's right edge with class label further right. On
-                  // negative bars we FLIP the order: class label snug to bar,
-                  // pct further left — otherwise short negative bars push both
-                  // labels into the middle of the plot area.
-                  const pctWidth = pctText.length * 6.8; // mono, fontSize 11
-                  const classLabelWidth = classLabel.length * 6.2; // non-mono, fontSize 10
-                  const labelGap = 8;
-                  const barGap = 8;
-                  // Negative bars get a larger gap so short bars (e.g. -4%) don't
-                  // visually blur the percentage text into the red bar fill.
-                  const negBarGap = 14;
-                  let pctX, classX;
-                  if (isNegative) {
-                    classX = x - negBarGap;
-                    pctX = classX - classLabelWidth - labelGap;
-                  } else {
-                    pctX = x + width + barGap;
-                    classX = pctX + pctWidth + labelGap;
-                  }
-                  const classColor =
-                    classLabel === "Accelerating"
-                      ? "#10B981"
-                      : classLabel === "Growing"
-                      ? "#059669"
-                      : classLabel === "Flat"
-                      ? "#334155"
-                      : classLabel === "Declining"
-                      ? "#F59E0B"
-                      : "#EF4444";
+                  // Negative bars need a touch more gap so the % digits don't
+                  // visually blur into the red bar fill.
+                  const xPos = isNegative ? x - 14 : x + width + 8;
                   return (
-                    <g>
-                      <text
-                        x={pctX}
-                        y={y + height / 2}
-                        dominantBaseline="middle"
-                        textAnchor={textAnchor}
-                        fontSize={11}
-                        fontWeight={600}
-                        className="fill-slate-900 font-mono dark:fill-slate-100"
-                      >
-                        {pctText}
-                      </text>
-                      <text
-                        x={classX}
-                        y={y + height / 2}
-                        dominantBaseline="middle"
-                        textAnchor={textAnchor}
-                        fontSize={10}
-                        fontWeight={500}
-                        fill={classColor}
-                      >
-                        {classLabel}
-                      </text>
-                    </g>
+                    <text
+                      x={xPos}
+                      y={y + height / 2}
+                      dominantBaseline="middle"
+                      textAnchor={isNegative ? "end" : "start"}
+                      fontSize={11}
+                      fontWeight={600}
+                      className="fill-slate-900 font-mono dark:fill-slate-100"
+                    >
+                      {pctText}
+                    </text>
                   );
                 }}
               />
@@ -380,8 +358,17 @@ export function GrowthView({ tickers }) {
         )}
       </div>
 
-      {/* RIGHT: Combined Signals column */}
+      {/* RIGHT: Growth Status table (qualitative labels moved out of the
+          chart to prevent edge clipping) + existing Fundamentals panel */}
       <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+          Growth Status
+        </p>
+        <div className="mb-4 space-y-3 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/50">
+          <GrowthStatusList label="Revenue" rows={revData} />
+          <GrowthStatusList label="Earnings" rows={epsData} />
+        </div>
+
         <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
           💡 Fundamentals{" "}
           <span className="normal-case text-slate-400 dark:text-slate-500">
@@ -395,6 +382,40 @@ export function GrowthView({ tickers }) {
           layout="column"
         />
       </div>
+    </div>
+  );
+}
+
+function GrowthStatusList({ label, rows }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+        {label}
+      </p>
+      <ul className="space-y-1">
+        {rows.map((d) => (
+          <li
+            key={d.ticker}
+            className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-xs"
+          >
+            <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
+              {d.ticker}
+            </span>
+            <span className="font-mono text-slate-500 dark:text-slate-400">
+              {d.value >= 0 ? "+" : ""}
+              {d.value.toFixed(1)}%
+            </span>
+            <span
+              className={`text-[11px] font-medium ${statusColorClass(
+                d.classification.label
+              )}`}
+            >
+              {d.classification.label}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
