@@ -44,7 +44,7 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
             Internal — directly about this company{" "}
             <span
-              className="font-normal normal-case tracking-normal"
+              className="text-xs font-normal normal-case tracking-normal"
               style={{
                 color: "#7C3AED",
                 textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
@@ -56,7 +56,12 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
         </div>
         <div className="p-5">
           {internalSorted.length === 0 ? (
-            <p className="text-xs italic text-slate-300">empty</p>
+            <div className="px-2 py-3 text-xs text-slate-500 dark:text-slate-400">
+              <div className="mb-1">No recent company-specific news.</div>
+              <div className="text-[11px] opacity-75">
+                Small-cap and less-covered tickers may have limited news availability.
+              </div>
+            </div>
           ) : (
             <ul className="space-y-2.5">
               {visibleInternal.map((it, i) => (
@@ -84,7 +89,7 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
             External — market, macro & sector news{" "}
             <span
-              className="font-normal normal-case tracking-normal"
+              className="text-xs font-normal normal-case tracking-normal"
               style={{
                 color: "#7C3AED",
                 textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
@@ -96,7 +101,12 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
         </div>
         <div className="p-5">
           {externalSorted.length === 0 ? (
-            <p className="text-xs italic text-slate-300">empty</p>
+            <div className="px-2 py-3 text-xs text-slate-500 dark:text-slate-400">
+              <div className="mb-1">No sector or macro headlines linked to this ticker.</div>
+              <div className="text-[11px] opacity-75">
+                Check back later — news refreshes every few minutes.
+              </div>
+            </div>
           ) : (
             <ul className="space-y-2.5">
               {visibleExternal.map((it, i) => (
