@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background-color: #f5f4f0;
+}
+
+/* Keep recharts responsive-container from forcing overflow. */
+.recharts-responsive-container {
+  min-width: 0;
+}
+
+/* Kill the black focus outline that appears when a chart element is
+   clicked/focused — recharts internals are technically interactive and
+   pick up the browser's default focus ring. */
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface,
+.recharts-surface * {
+  outline: none !important;
+}
