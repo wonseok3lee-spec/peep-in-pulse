@@ -6,7 +6,7 @@ import Dashboard from "./components/Dashboard";
 import CompareTab from "./components/CompareTab";
 import { MAX_COMPARE } from "./lib/colors";
 
-const DEFAULT_WATCHLIST = ["MSFT", "ORCL"];
+const DEFAULT_WATCHLIST = [];
 const MAX_WATCHLIST = 10;
 
 export default function App() {
@@ -138,6 +138,7 @@ export default function App() {
             <Dashboard
               ticker={effectiveSelected}
               items={effectiveSelected ? data?.[effectiveSelected] ?? [] : []}
+              addTicker={addTicker}
             />
           )}
 

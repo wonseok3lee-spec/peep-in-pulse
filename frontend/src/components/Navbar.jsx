@@ -51,20 +51,38 @@ export default function Navbar({
   return (
     <header className="sticky top-0 z-20 w-full border-b border-slate-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-colors dark:border-zinc-700/50 dark:bg-[#0B0F14] dark:shadow-[0_1px_3px_rgba(0,0,0,0.4)]">
       <div className="flex w-full items-center gap-6 px-8 py-4">
-        {/* Logo — violet dot + "Peep into" italic + gradient "Pulse" */}
-        <div className="flex shrink-0 select-none items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_8px_rgba(124,58,237,0.6)]" />
-          <div
-            className="flex items-baseline"
-            style={{ fontFamily: "'Playfair Display', serif" }}
+        {/* Logo — purple pulse-line SVG + Inter 900 uppercase wordmark */}
+        <div className="flex shrink-0 select-none items-center gap-2.5">
+          <svg
+            width="36"
+            height="20"
+            viewBox="0 0 48 24"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            stroke="#7C3AED"
+            strokeWidth="2.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              filter: "drop-shadow(0 0 6px rgba(124, 58, 237, 0.4))",
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
           >
-            <span className="text-[22px] font-normal italic tracking-tight text-slate-500 dark:text-slate-400">
-              Peep into
-            </span>
-            <span className="ml-1.5 bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-[22px] font-bold tracking-tight text-transparent dark:from-slate-100 dark:to-slate-300">
-              Pulse
-            </span>
-          </div>
+            <path d="M2 12 L10 12 L14 4 L20 20 L26 8 L30 16 L38 12 L46 12" />
+          </svg>
+          <span
+            className="text-slate-900 dark:text-slate-50"
+            style={{
+              fontFamily: "'Inter', system-ui, sans-serif",
+              fontSize: "18px",
+              fontWeight: 900,
+              letterSpacing: "0.01em",
+              lineHeight: 1,
+            }}
+          >
+            PEEP INTO PULSE
+          </span>
         </div>
 
         {/* Tabs — active tab gets a short violet bar with soft glow */}
@@ -85,7 +103,7 @@ export default function Navbar({
               >
                 {t.label}
                 {active && (
-                  <span className="absolute bottom-0 left-1/2 h-[2px] w-8 -translate-x-1/2 rounded-full bg-violet-500 shadow-[0_0_6px_rgba(124,58,237,0.5)]" />
+                  <span className="absolute bottom-0 left-5 right-5 h-[3px] rounded-full bg-violet-500 shadow-[0_0_6px_rgba(124,58,237,0.5)]" />
                 )}
               </button>
             );

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>V2 — Bloomberg Professional · Peep into Pulse</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #000000;
+        --accent: #dc2626;
+        --surface: #faf8f5;
+        --card: #ffffff;
+        --muted: #64748b;
+        --border: #e5e7eb;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--surface);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        padding: 40px;
+      }
+      .logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--ink);
+        font-family: "Space Grotesk", system-ui, sans-serif;
+        line-height: 1;
+      }
+      .diamond {
+        display: inline-block;
+        background: var(--accent);
+        transform: rotate(45deg);
+        flex-shrink: 0;
+      }
+      .size-nav .diamond { width: 10px; height: 10px; }
+      .size-2x .diamond { width: 20px; height: 20px; }
+      .size-nav .wordmark { font-size: 17px; }
+      .size-2x .wordmark { font-size: 34px; }
+      .wordmark .light { font-weight: 500; }
+      .wordmark .bold { font-weight: 700; }
+      h2.section {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+      .card {
+        padding: 24px;
+        background: var(--card);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+      }
+      .card.detail { padding: 48px; }
+      .label {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      /* Give the rotated diamond enough room so rotation doesn't clip */
+      .logo { padding-left: 4px; }
+    </style>
+  </head>
+  <body>
+    <div style="max-width: 900px; margin: 0 auto;">
+      <h2 class="section">Navbar size preview</h2>
+      <div class="card">
+        <span class="logo size-nav">
+          <span class="diamond" aria-hidden="true"></span>
+          <span class="wordmark">
+            <span class="light">Peep into </span><span class="bold">Pulse</span>
+          </span>
+        </span>
+      </div>
+
+      <h2 class="section" style="margin-top: 32px;">2× detail</h2>
+      <div class="card detail">
+        <span class="logo size-2x">
+          <span class="diamond" aria-hidden="true"></span>
+          <span class="wordmark">
+            <span class="light">Peep into </span><span class="bold">Pulse</span>
+          </span>
+        </span>
+      </div>
+
+      <p class="label">V2 — Bloomberg Professional · Space Grotesk + red diamond</p>
+    </div>
+  </body>
+</html>

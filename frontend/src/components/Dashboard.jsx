@@ -56,7 +56,7 @@ function SortToggle({ sortMode, onChange }) {
   );
 }
 
-export default function Dashboard({ ticker, items }) {
+export default function Dashboard({ ticker, items, addTicker }) {
   const [sortMode, setSortMode] = useState("priority");
 
   return (
@@ -75,8 +75,10 @@ export default function Dashboard({ ticker, items }) {
         </>
       ) : null}
 
-      {/* Top Movers — always shown, regardless of ticker selection */}
-      <TopMoversSection />
+      {/* Top Movers — always shown, regardless of ticker selection.
+          Clicking a row adds that ticker to the watchlist (primary
+          onboarding path when the watchlist is empty). */}
+      <TopMoversSection onTickerClick={addTicker} />
     </div>
   );
 }

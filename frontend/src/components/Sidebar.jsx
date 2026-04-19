@@ -43,6 +43,27 @@ export default function Sidebar({
   return (
     <aside className="sticky top-[65px] flex h-[calc(100vh-65px)] w-[280px] shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white transition-colors dark:border-zinc-700/50 dark:bg-[#0B0F14]">
       <div className="flex-1 space-y-4 p-4">
+        {/* Persistent onboarding hint — always visible, points users at the
+            top-bar search. Small glowing dot echoes the navbar logo so the
+            affordance reads as "connected" to that search, not decorative. */}
+        <div className="mb-3 flex items-center gap-2 px-1">
+          <span
+            aria-hidden="true"
+            className="inline-block rounded-full"
+            style={{
+              width: "6px",
+              height: "6px",
+              background:
+                "linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)",
+              boxShadow:
+                "0 0 6px 1px rgba(139, 92, 246, 0.7), 0 0 12px 2px rgba(236, 72, 153, 0.4)",
+              flexShrink: 0,
+            }}
+          />
+          <p className="text-[11px] font-medium tracking-wide text-slate-500 dark:text-slate-400">
+            Type in the top bar to track
+          </p>
+        </div>
         <div>
           <div className="mb-2 flex items-center justify-between px-1">
             <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
@@ -67,8 +88,8 @@ export default function Sidebar({
           </div>
 
           {watchlist.length === 0 ? (
-            <p className="px-1 text-xs italic text-slate-400">
-              Type a ticker in the top bar and press Enter.
+            <p className="px-1 text-xs italic text-slate-400 dark:text-slate-500">
+              Your watchlist is empty.
             </p>
           ) : (
             <ul className="space-y-1.5">

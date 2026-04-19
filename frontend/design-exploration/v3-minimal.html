@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>V3 — Minimalist · Peep into Pulse</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Geist via Google Fonts; Inter as same-weight fallback if Geist can't
+         serve. Google Fonts currently ships Geist; fallback is defensive. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600&family=Inter:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #0f172a;
+        --outline: #525252;
+        --surface: #faf8f5;
+        --card: #ffffff;
+        --muted: #64748b;
+        --border: #e5e7eb;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--surface);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        padding: 40px;
+      }
+      .logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ink);
+        line-height: 1;
+      }
+      .dots {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .dot {
+        display: inline-block;
+        border-radius: 999px;
+        flex-shrink: 0;
+      }
+      .dot.outlined {
+        border: 1.5px solid var(--outline);
+        background: transparent;
+      }
+      .dot.filled { background: var(--ink); }
+      .size-nav .dot { width: 8px; height: 8px; }
+      .size-2x .dot { width: 16px; height: 16px; }
+      .size-2x .dot.outlined { border-width: 2.5px; }
+      .wordmark {
+        font-family: "Geist", "Inter", system-ui, sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+      }
+      .size-nav .wordmark { font-size: 15px; }
+      .size-2x .wordmark { font-size: 30px; }
+      .size-2x .dots { gap: 8px; }
+      h2.section {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin: 0 0 8px;
+      }
+      .card {
+        padding: 24px;
+        background: var(--card);
+        border-radius: 12px;
+        border: 1px solid var(--border);
+      }
+      .card.detail { padding: 48px; }
+      .label {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="max-width: 900px; margin: 0 auto;">
+      <h2 class="section">Navbar size preview</h2>
+      <div class="card">
+        <span class="logo size-nav">
+          <span class="dots" aria-hidden="true">
+            <span class="dot outlined"></span>
+            <span class="dot filled"></span>
+          </span>
+          <span class="wordmark">peep.pulse</span>
+        </span>
+      </div>
+
+      <h2 class="section" style="margin-top: 32px;">2× detail</h2>
+      <div class="card detail">
+        <span class="logo size-2x">
+          <span class="dots" aria-hidden="true">
+            <span class="dot outlined"></span>
+            <span class="dot filled"></span>
+          </span>
+          <span class="wordmark">peep.pulse</span>
+        </span>
+      </div>
+
+      <p class="label">V3 — Minimalist · Geist + dot marks · lowercase</p>
+    </div>
+  </body>
+</html>

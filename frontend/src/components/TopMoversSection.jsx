@@ -19,7 +19,7 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
-function MoverColumn({ id, label }) {
+function MoverColumn({ id, label, onTickerClick }) {
   const { data, loading, error } = useScreener(id);
   const rows = data.slice(0, ROW_LIMIT);
 
@@ -54,15 +54,20 @@ function MoverColumn({ id, label }) {
           {rows.map((row, i) => {
             const isPositive = row.changePct >= 0;
             return (
-              <div
+              <button
                 key={row.ticker || i}
-                className="flex items-baseline gap-2 text-xs"
+                type="button"
+                onClick={() => onTickerClick?.(row.ticker)}
+                className="group -mx-1 flex w-full items-baseline gap-2 rounded px-1 py-1 text-left text-xs transition-colors hover:bg-slate-100 dark:hover:bg-zinc-800"
               >
                 <span className="w-4 shrink-0 font-mono text-slate-400">
                   {i + 1}.
                 </span>
                 <span className="shrink-0 font-mono font-semibold text-slate-900 dark:text-slate-100">
                   {row.ticker}
+                </span>
+                <span className="hidden shrink-0 font-mono text-[10px] font-medium tracking-wide text-violet-600 group-hover:inline dark:text-violet-400">
+                  + ADD
                 </span>
                 <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">
                   {truncate(row.name, 24)}
@@ -76,7 +81,7 @@ function MoverColumn({ id, label }) {
                 >
                   {formatChange(row.changePct)}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -85,7 +90,7 @@ function MoverColumn({ id, label }) {
   );
 }
 
-export default function TopMoversSection() {
+export default function TopMoversSection({ onTickerClick }) {
   return (
     <section className="mt-6 rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
       <div className="mb-4 flex items-center gap-2">
@@ -98,7 +103,11 @@ export default function TopMoversSection() {
       <div className="grid grid-cols-3 gap-6 divide-x divide-dashed divide-slate-200 dark:divide-zinc-700">
         {COLUMNS.map((col, i) => (
           <div key={col.id} className={i > 0 ? "pl-6" : ""}>
-            <MoverColumn id={col.id} label={col.label} />
+            <MoverColumn
+              id={col.id}
+              label={col.label}
+              onTickerClick={onTickerClick}
+            />
           </div>
         ))}
       </div>

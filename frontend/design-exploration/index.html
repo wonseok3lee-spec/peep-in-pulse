@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Peep into Pulse — Logo Variants</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --ink: #0f172a;
+        --surface: #faf8f5;
+        --muted: #64748b;
+        --accent: #7c3aed;
+      }
+      body {
+        margin: 0;
+        background: var(--surface);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        padding: 40px;
+        color: var(--ink);
+      }
+      .wrap { max-width: 720px; margin: 0 auto; }
+      h1 {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 14px;
+        margin: 0 0 32px;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 12px;
+      }
+      li a {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        text-decoration: none;
+        color: var(--ink);
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+      li a:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+      }
+      .tag {
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Peep into Pulse — Logo Variants</h1>
+      <p class="sub">
+        Four design explorations. Open each file directly; no dev server needed.
+      </p>
+      <ul>
+        <li>
+          <a href="v1-fintech.html">
+            <span>V1 — Modern Fintech</span>
+            <span class="tag">Inter 900 + pulse line</span>
+          </a>
+        </li>
+        <li>
+          <a href="v2-pro.html">
+            <span>V2 — Bloomberg Professional</span>
+            <span class="tag">Space Grotesk + red diamond</span>
+          </a>
+        </li>
+        <li>
+          <a href="v3-minimal.html">
+            <span>V3 — Minimalist Linear</span>
+            <span class="tag">Geist + dot marks · lowercase</span>
+          </a>
+        </li>
+        <li>
+          <a href="v4-refined.html">
+            <span>V4 — Refined Current</span>
+            <span class="tag">Fraunces editorial + gradient dot</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </body>
+</html>
