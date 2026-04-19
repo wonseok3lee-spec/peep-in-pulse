@@ -42,7 +42,16 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
         <div className="border-b border-slate-100 bg-slate-50 px-5 py-2 dark:border-zinc-700/50 dark:bg-zinc-800">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            Internal — directly about this company
+            Internal — directly about this company{" "}
+            <span
+              className="font-normal normal-case tracking-normal"
+              style={{
+                color: "#7C3AED",
+                textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
+              }}
+            >
+              (Headlines · Impact)
+            </span>
           </span>
         </div>
         <div className="p-5">
@@ -73,7 +82,16 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
         <div className="border-b border-slate-100 bg-slate-50 px-5 py-2 dark:border-zinc-700/50 dark:bg-zinc-800">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            External — market, macro & sector news
+            External — market, macro & sector news{" "}
+            <span
+              className="font-normal normal-case tracking-normal"
+              style={{
+                color: "#7C3AED",
+                textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
+              }}
+            >
+              (Headlines · Impact)
+            </span>
           </span>
         </div>
         <div className="p-5">

@@ -211,9 +211,13 @@ function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
                   if (value == null) return null;
                   const isNegative = value < 0;
                   const pctText = `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-                  // Negative bars need a touch more gap so the % digits don't
-                  // visually blur into the red bar fill.
-                  const xPos = isNegative ? x - 14 : x + width + 8;
+                  // Always render the label OUTSIDE the bar end (8 px gap),
+                  // never inside — regardless of bar length. Recharts passes
+                  // x = the bar's leftmost pixel and width > 0, so the bar
+                  // visually spans [x, x + width] for both signs:
+                  //   positive → label sits right of (x + width)
+                  //   negative → label sits left of x
+                  const xPos = isNegative ? x - 8 : x + width + 8;
                   return (
                     <text
                       x={xPos}
