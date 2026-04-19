@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -330,30 +331,59 @@ def _fetch_yahoo_news(ticker: str) -> list[dict[str, Any]]:
 async def _fetch_ticker_news_once_async(ticker: str) -> list[dict[str, Any]]:
     """One fetch attempt merging Yahoo + Google News + Finviz.
 
-    All three sources run concurrently in the default threadpool (they're
-    sync-blocking via yfinance/feedparser/httpx). Per-source failures are
-    logged but non-fatal — we use whatever succeeded.
+    Yahoo and Google always fetch in parallel (both reliable and cheap).
+    Finviz only fires when Yahoo returned <5 items — Finviz's BeautifulSoup
+    DOM is the heaviest per-ticker allocation (~1-2 MB) and at 10+ merged
+    results its contribution is usually deduped away anyway.
     """
     loop = asyncio.get_running_loop()
 
-    source_labels = ("Yahoo Finance", "Google News", "Finviz")
-    results = await asyncio.gather(
+    yahoo_result, google_result = await asyncio.gather(
         loop.run_in_executor(None, _fetch_yahoo_news, ticker),
         loop.run_in_executor(None, fetch_google_news, ticker),
-        loop.run_in_executor(None, fetch_finviz_news, ticker),
         return_exceptions=True,
     )
 
     yahoo_items: list[dict[str, Any]] = []
     google_items: list[dict[str, Any]] = []
     finviz_items: list[dict[str, Any]] = []
-    buckets = [yahoo_items, google_items, finviz_items]
-    for label, result, bucket in zip(source_labels, results, buckets):
-        if isinstance(result, Exception):
-            logger.warning("[news] %s failed for %s: %s", label, ticker, result)
-            continue
-        bucket.extend(result or [])
-        logger.info("[news] %s: +%d from %s", ticker, len(bucket), label)
+
+    if isinstance(yahoo_result, Exception):
+        logger.warning(
+            "[news] Yahoo Finance failed for %s: %s", ticker, yahoo_result
+        )
+    else:
+        yahoo_items = yahoo_result or []
+        logger.info(
+            "[news] %s: +%d from Yahoo Finance", ticker, len(yahoo_items)
+        )
+
+    if isinstance(google_result, Exception):
+        logger.warning(
+            "[news] Google News failed for %s: %s", ticker, google_result
+        )
+    else:
+        google_items = google_result or []
+        logger.info("[news] %s: +%d from Google News", ticker, len(google_items))
+
+    # Conditional Finviz: only worth the DOM allocation when Yahoo was thin.
+    if len(yahoo_items) < 5:
+        try:
+            finviz_result = await loop.run_in_executor(
+                None, fetch_finviz_news, ticker
+            )
+            finviz_items = finviz_result or []
+            logger.info(
+                "[news] %s: +%d from Finviz", ticker, len(finviz_items)
+            )
+        except Exception as exc:
+            logger.warning("[news] Finviz failed for %s: %s", ticker, exc)
+    else:
+        logger.info(
+            "[news] %s: skipping Finviz (Yahoo returned %d ≥ 5)",
+            ticker,
+            len(yahoo_items),
+        )
 
     # Merge all sources
     all_items = yahoo_items + google_items + finviz_items
@@ -376,10 +406,11 @@ async def _fetch_ticker_news_once_async(ticker: str) -> list[dict[str, Any]]:
             seen_keys.add(key)
             deduped.append(item)
 
-    # Sort by recency, keep top 15.
+    # Sort by recency, keep top 10. Lowered from 15 to reduce per-ticker
+    # memory (fewer article-body fetches + smaller tagger payload).
     epoch = datetime.min.replace(tzinfo=timezone.utc)
     deduped.sort(key=lambda x: x.get("published_time") or epoch, reverse=True)
-    all_items = deduped[:15]
+    all_items = deduped[:10]
 
     logger.info(
         "[news] %s: %d total after dedup — yahoo=%d, google=%d, finviz=%d",
@@ -406,6 +437,9 @@ async def _fetch_ticker_news_once_async(ticker: str) -> list[dict[str, Any]]:
     # run_in_executor so this task doesn't block the event loop while other
     # tickers' enrichment is in flight.
     await loop.run_in_executor(None, _fetch_articles_for_items, items)
+    # Release transient BeautifulSoup trees held by the enricher's worker
+    # frames before the next ticker's enrichment starts stacking more.
+    gc.collect()
     got = sum(1 for it in items if it.get("article_text"))
     logger.info(
         "[news] %s: final %d items, %d with article text",

@@ -326,20 +326,29 @@ async def tag_all_async(
     """Tag every ticker in parallel via the default threadpool.
 
     OpenAI's sync client is thread-safe, so a single instance is shared across
-    workers. With ~10 tickers dispatched concurrently we stay well under the
-    3,500 RPM tier limit. Per-ticker failures are logged and fall back to the
-    untagged items (dropping tags but preserving the rest of the snapshot).
+    workers. A Semaphore(3) caps concurrent OpenAI calls to bound the peak
+    memory held by in-flight request/response buffers (each call holds ~2-5 KB
+    of JSON plus transient HTTP client state; 10+ simultaneous calls add up on
+    a 512 MB Render instance). Per-ticker failures fall back to an empty list
+    so the rest of the snapshot survives.
     """
     client = OpenAI(api_key=OPENAI_API_KEY)
     loop = asyncio.get_running_loop()
+    # Created inside the coroutine so it binds to whichever event loop the
+    # sync wrapper (asyncio.run) is currently running on.
+    sem = asyncio.Semaphore(3)
+
+    async def _tag_with_limit(
+        ticker: str, items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        async with sem:
+            return await loop.run_in_executor(
+                None, _tag_one_ticker, client, ticker, items
+            )
+
     tickers = list(news_by_ticker.keys())
     results = await asyncio.gather(
-        *(
-            loop.run_in_executor(
-                None, _tag_one_ticker, client, t, news_by_ticker[t]
-            )
-            for t in tickers
-        ),
+        *(_tag_with_limit(t, news_by_ticker[t]) for t in tickers),
         return_exceptions=True,
     )
     tagged: dict[str, list[dict[str, Any]]] = {}
