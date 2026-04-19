@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import CompareTab from "./components/CompareTab";
 import { MAX_COMPARE } from "./lib/colors";
+import { API_URL } from "./lib/api";
 
 const DEFAULT_WATCHLIST = [];
 const MAX_WATCHLIST = 10;
@@ -38,7 +39,7 @@ export default function App() {
       return [...w, sym];
     });
     setSelected((s) => s ?? sym);
-    fetch(`http://localhost:8000/tickers/add?ticker=${sym}`, {
+    fetch(`${API_URL}/tickers/add?ticker=${sym}`, {
       method: "POST",
     }).catch(() => {});
   }, []);

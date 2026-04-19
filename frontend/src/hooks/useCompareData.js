@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
 // Yahoo's `range` parameter returns the last N of session data, so it handles
 // weekends/holidays naturally — asking for `range=1d` on a Saturday still
@@ -78,7 +79,7 @@ function buildFetchParams(periodKey, customStart, customEnd) {
 /** Fetch via the backend proxy. Returns {points, companyName}. */
 async function fetchYahooHistory(ticker, params, signal) {
   const qs = new URLSearchParams(params).toString();
-  const url = `http://localhost:8000/proxy/chart/${encodeURIComponent(
+  const url = `${API_URL}/proxy/chart/${encodeURIComponent(
     ticker
   )}?${qs}`;
   const res = await fetch(url, { signal });

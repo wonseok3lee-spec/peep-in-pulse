@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
-const API_BASE = "http://localhost:8000";
 const CACHE_PREFIX = "pulse:screener:";
 
 function readCache(scrId) {
@@ -42,7 +42,7 @@ export function useScreener(scrId) {
       try {
         if (isInitial && !cached) setLoading(true);
         setError(null);
-        const res = await fetch(`${API_BASE}/proxy/screener/${scrId}`);
+        const res = await fetch(`${API_URL}/proxy/screener/${scrId}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
 export function useTickerSearch(query) {
   const [results, setResults] = useState([]);
@@ -11,7 +12,7 @@ export function useTickerSearch(query) {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `http://localhost:8000/proxy/search?q=${encodeURIComponent(query)}`
+          `${API_URL}/proxy/search?q=${encodeURIComponent(query)}`
         );
         const data = await res.json();
         const quotes = data?.quotes ?? [];

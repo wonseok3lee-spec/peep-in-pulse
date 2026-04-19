@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
 const PERIOD_PARAMS = {
   "1D": { interval: "5m", range: "1d" },
@@ -15,7 +16,7 @@ export function useSparkline(ticker, period = "1D") {
     if (!ticker) return;
     const { interval, range } = PERIOD_PARAMS[period] ?? PERIOD_PARAMS["1D"];
     fetch(
-      `http://localhost:8000/proxy/chart/${ticker}?interval=${interval}&range=${range}`
+      `${API_URL}/proxy/chart/${ticker}?interval=${interval}&range=${range}`
     )
       .then((r) => r.json())
       .then((json) => {

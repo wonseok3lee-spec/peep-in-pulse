@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const POLL_INTERVAL_MS = 60_000;
 const CACHE_KEY = "pulse:snapshot";
 

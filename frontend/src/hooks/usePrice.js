@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
 const POLL_MS = 60_000;
 
@@ -38,7 +39,7 @@ export function usePrice(ticker) {
 
     const fetchOnce = async () => {
       try {
-        const url = `http://localhost:8000/proxy/price/${encodeURIComponent(
+        const url = `${API_URL}/proxy/price/${encodeURIComponent(
           ticker
         )}`;
         const res = await fetch(url, { signal: controller.signal });

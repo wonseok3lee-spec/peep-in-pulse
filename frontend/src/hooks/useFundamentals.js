@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "../lib/api";
 
 export function useFundamentals(tickers) {
   const [data, setData] = useState({});
@@ -15,7 +16,7 @@ export function useFundamentals(tickers) {
 
     Promise.all(
       tickers.map((t) =>
-        fetch(`http://localhost:8000/proxy/fundamentals/${t}`)
+        fetch(`${API_URL}/proxy/fundamentals/${t}`)
           .then((r) => r.json())
           .then((json) => [t, json])
           .catch(() => [t, null])
