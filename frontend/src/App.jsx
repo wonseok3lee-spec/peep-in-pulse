@@ -27,6 +27,24 @@ export default function App() {
     localStorage.setItem("pip_watchlist", JSON.stringify(watchlist));
   }, [watchlist]);
 
+  // On mount only: declare the localStorage watchlist to the backend so it
+  // can re-fetch any tickers whose in-memory state was wiped by a restart
+  // (OOM, deploy). The backend ensures each ticker is in _extra_tickers
+  // and fires a background fetch for any missing from _last_result.
+  // Empty deps array is intentional — this MUST NOT re-fire on every
+  // watchlist change; adds/removes are handled by /tickers/add individually.
+  useEffect(() => {
+    if (watchlist.length === 0) return;
+    fetch(`${API_URL}/tickers/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers: watchlist }),
+    }).catch(() => {
+      // Silent fail — user can still re-add manually if the backend is down.
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [selected, setSelected] = useState(DEFAULT_WATCHLIST[0] ?? null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [compareSet, setCompareSet] = useState([]);

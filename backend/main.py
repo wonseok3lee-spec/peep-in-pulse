@@ -21,6 +21,7 @@ import yfinance as yf
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from config import TICKERS
 from news_fetcher import fetch_all
@@ -539,28 +540,51 @@ async def add_ticker(ticker: str):
     return {"status": "ok", "ticker": ticker}
 
 
+class SyncRequest(BaseModel):
+    tickers: list[str]
+
+
 @app.post("/tickers/sync")
-async def sync_tickers(tickers: list[str]):
-    _sync_start = time.time()
-    logger.info("[sync] REQUEST RECEIVED at %.3f", _sync_start)
+async def sync_tickers(req: SyncRequest):
+    """Frontend calls this on boot with its localStorage watchlist.
 
-    normalized = [t.upper().strip() for t in tickers if t.upper().strip()]
-    with _state_lock:
-        known = set(_last_result.keys())
-    new_tickers = [t for t in normalized if t not in known]
-    with _state_lock:
-        for t in new_tickers:
-            _extra_tickers.add(t)
-    for ticker in new_tickers:
-        asyncio.create_task(_fetch_and_cache_ticker(ticker))
-        logger.info(f"[sync] queued fetch for {ticker}")
+    Ensures every ticker is in _extra_tickers (so the 5-min scheduler keeps
+    it fresh), and kicks off a background fetch for any ticker not already
+    in _last_result. Recovers user-added tickers after backend restarts
+    that wiped in-memory state faster than disk rehydration can.
+    """
+    added: list[str] = []
+    fetched: list[str] = []
 
-    logger.info(
-        "[sync] RETURNING after %.3fs, queued=%d",
-        time.time() - _sync_start,
-        len(new_tickers),
-    )
-    return {"status": "ok", "queued": new_tickers}
+    for raw in req.tickers:
+        sym = (raw or "").strip().upper()
+        if not sym or len(sym) > 10:
+            continue
+
+        with _state_lock:
+            was_new_extra = sym not in _extra_tickers
+            _extra_tickers.add(sym)
+            has_data = sym in _last_result
+
+        if was_new_extra:
+            added.append(sym)
+
+        if not has_data:
+            # Fire-and-forget; _fetch_and_cache_ticker writes into
+            # _last_result + calls _save_snapshot on success.
+            asyncio.create_task(_fetch_and_cache_ticker(sym))
+            fetched.append(sym)
+
+    # Persist the _extra_tickers update so the new entries survive even
+    # if no background fetch completes before the next restart.
+    if added:
+        _save_snapshot()
+
+    return {
+        "added_to_extra": added,
+        "fetching": fetched,
+        "total_synced": len(req.tickers),
+    }
 
 
 async def _fetch_and_cache_ticker(ticker: str) -> None:
