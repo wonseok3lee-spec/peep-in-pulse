@@ -69,11 +69,14 @@ _ALLOWED_SCREENERS = (
 _price_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _PRICE_TTL = 30
 
-# Chart payloads (sparklines + CompareTab history) are heavier and change
-# slowly; 5 min TTL makes repeat tab/period switches instant without serving
-# noticeably stale data. Keyed by (ticker, interval, range, period1, period2).
+# Chart payloads (sparklines + CompareTab history). Keyed by
+# (ticker, interval, range, period1, period2). Intraday bars get a short
+# TTL so a fresh 5-min bar shows up in the watchlist sparkline within ~1-2
+# min of its close; daily+ bars change slowly, so we keep the longer TTL
+# for snappy tab/period switches.
 _chart_cache: dict[str, tuple[float, dict[str, Any]]] = {}
-_CHART_TTL = 300
+_CHART_TTL_INTRADAY = 90
+_CHART_TTL_DAILY = 300
 
 # Shared AsyncClient singleton so every /proxy/* endpoint reuses TCP/TLS
 # connections to Yahoo instead of paying a fresh handshake per request.
@@ -364,12 +367,24 @@ async def proxy_chart(
     explicit `period1`/`period2` unix-second window. period1/period2 wins
     when both are set, supporting the Custom date-range picker.
     """
+    intraday = interval in (
+        "1m",
+        "2m",
+        "5m",
+        "15m",
+        "30m",
+        "60m",
+        "90m",
+        "1h",
+    )
+    ttl = _CHART_TTL_INTRADAY if intraday else _CHART_TTL_DAILY
+
     # Cache key: all params contribute since different params → different data.
     # None values stringify as "None" and act as a stable sentinel for "unset".
     cache_key = f"{ticker}|{interval}|{range}|{period1}|{period2}"
     now = time.time()
     cached = _chart_cache.get(cache_key)
-    if cached and (now - cached[0]) < _CHART_TTL:
+    if cached and (now - cached[0]) < ttl:
         return cached[1]
 
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
@@ -384,16 +399,6 @@ async def proxy_chart(
     # Suppress pre-market + after-hours bars on intraday intervals. Without
     # this, 1D charts span ~20 hours with spiky extended-hours noise. The
     # post-fetch tradingPeriods trim is a backstop if this flag is ignored.
-    intraday = interval in (
-        "1m",
-        "2m",
-        "5m",
-        "15m",
-        "30m",
-        "60m",
-        "90m",
-        "1h",
-    )
     if intraday:
         # Suppress pre-market + after-hours when asking Yahoo. Belt-and-
         # suspenders paired with the post-fetch hour trim below.
