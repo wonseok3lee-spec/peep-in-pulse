@@ -7,11 +7,13 @@ so every request is instant.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -99,6 +101,83 @@ def _to_iso_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# On-disk snapshot so user-added tickers survive OOM / crash restarts on
+# Render. NOT redeploy-durable (Render wipes the filesystem on deploy), but
+# that's acceptable since the scheduler and /tickers/add will rebuild the
+# state organically. See .gitignore — this file is never committed.
+SNAPSHOT_PATH = Path(__file__).parent / "snapshot.json"
+
+
+def _save_snapshot() -> None:
+    """Atomically persist the current pulse snapshot to disk.
+
+    Builds the payload under `_state_lock` (brief reference-only dict copy),
+    then serializes and writes outside the lock so slow disk I/O doesn't
+    block request handlers or the scheduler thread.
+    """
+    try:
+        with _state_lock:
+            payload = {
+                "last_updated": (
+                    _to_iso_z(_last_updated) if _last_updated else None
+                ),
+                "extra_tickers": sorted(_extra_tickers),
+                "data": _last_result,
+            }
+        body = json.dumps(payload, ensure_ascii=False, default=str)
+        tmp = SNAPSHOT_PATH.with_suffix(".json.tmp")
+        tmp.write_text(body, encoding="utf-8")
+        tmp.replace(SNAPSHOT_PATH)  # atomic on POSIX and Windows
+    except Exception as exc:
+        logger.warning("[snapshot] save failed: %s", exc)
+
+
+def _load_snapshot() -> None:
+    """Populate in-memory state from disk if a snapshot file exists.
+
+    Called once at startup before the scheduler fires, so /pulse can serve
+    cached data immediately instead of showing `building: true` for the
+    full scheduler interval after every crash/restart.
+    """
+    global _last_result, _last_updated, _snapshot_building
+    if not SNAPSHOT_PATH.exists():
+        return
+    try:
+        payload = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("[snapshot] load failed: %s", exc)
+        return
+
+    data = payload.get("data") or {}
+    last_updated_str = payload.get("last_updated")
+    extras = payload.get("extra_tickers") or []
+
+    parsed_updated: datetime | None = None
+    if last_updated_str:
+        try:
+            parsed_updated = datetime.fromisoformat(
+                last_updated_str.replace("Z", "+00:00")
+            )
+        except ValueError:
+            parsed_updated = None
+
+    with _state_lock:
+        _last_result = data
+        _last_updated = parsed_updated
+        _extra_tickers.update(extras)
+        # Flip the "still priming" gate so /pulse serves cached data on the
+        # very first request after boot, not `building: true` for 5 minutes.
+        if data:
+            _snapshot_building = False
+
+    logger.info(
+        "[snapshot] loaded %d tickers, %d extras from %s",
+        len(data),
+        len(extras),
+        SNAPSHOT_PATH,
+    )
+
+
 def _build_snapshot(
     tickers: list[str] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
@@ -163,6 +242,7 @@ def _refresh_pulse() -> None:
         _last_result = snapshot
         _last_updated = now
         _snapshot_building = False
+    _save_snapshot()
     print(
         f"[main] pulse refreshed at {_to_iso_z(now)} ({len(all_tickers)} tickers)"
     )
@@ -173,12 +253,16 @@ _scheduler = BackgroundScheduler(timezone="UTC")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Kick the initial snapshot build into the background and yield immediately
-    # so uvicorn starts accepting requests right away. /pulse returns
-    # `building: true` with an empty snapshot until this task finishes; the
-    # frontend's 60 s poll picks up real data on the next cycle. Offloading to
-    # the default executor gives the inner asyncio.run() (in fetch_all) a
-    # clean host thread instead of clashing with the running lifespan loop.
+    # First: rehydrate any snapshot the previous process left on disk so
+    # /pulse can serve cached data instantly instead of showing `building:
+    # true` for the whole first scheduler interval after every crash.
+    _load_snapshot()
+    # Then kick the initial snapshot build into the background and yield
+    # immediately so uvicorn starts accepting requests right away. The
+    # background prime will overwrite the disk-loaded data with fresher
+    # content when it completes. Offloading to the default executor gives
+    # the inner asyncio.run() (in fetch_all) a clean host thread instead
+    # of clashing with the running lifespan loop.
     asyncio.get_running_loop().run_in_executor(None, _refresh_pulse)
     _scheduler.add_job(
         _refresh_pulse,
@@ -488,6 +572,7 @@ async def _fetch_and_cache_ticker(ticker: str) -> None:
         items = snapshot.get(ticker, [])
         with _state_lock:
             _last_result[ticker] = items
+        _save_snapshot()
         logger.info(
             "[main] immediately fetched %d items for %s", len(items), ticker
         )
