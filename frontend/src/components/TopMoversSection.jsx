@@ -126,12 +126,12 @@ export default function TopMoversSection({ onTickerClick }) {
 
   return (
     <section className="mt-6 rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className="text-base">🔥</span>
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-700 dark:text-slate-200">
           Top Movers
         </h2>
-        <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+        <label className="ml-4 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
           <span className="font-medium uppercase tracking-wide">Filter</span>
           <select
             value={capFilter}
