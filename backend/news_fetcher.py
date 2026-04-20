@@ -406,11 +406,14 @@ async def _fetch_ticker_news_once_async(ticker: str) -> list[dict[str, Any]]:
             seen_keys.add(key)
             deduped.append(item)
 
-    # Sort by recency, keep top 10. Lowered from 15 to reduce per-ticker
-    # memory (fewer article-body fetches + smaller tagger payload).
+    # Sort by recency, keep top 20. Larger pool lets the frontend's
+    # Recency-vs-Importance toggle produce visibly different orderings —
+    # without it, breaking news is both the most recent AND the most
+    # important, so the two modes collapse to the same list. Frontend
+    # still caps the visible slice at 7 internal + 5 external.
     epoch = datetime.min.replace(tzinfo=timezone.utc)
     deduped.sort(key=lambda x: x.get("published_time") or epoch, reverse=True)
-    all_items = deduped[:10]
+    all_items = deduped[:20]
 
     logger.info(
         "[news] %s: %d total after dedup — yahoo=%d, google=%d, finviz=%d",
