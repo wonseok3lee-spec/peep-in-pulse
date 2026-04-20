@@ -292,7 +292,9 @@ app.add_middleware(
         "http://localhost:5173",  # Vite dev
         "http://localhost:4173",  # Vite preview (prod build)
         "http://localhost:4174",  # Secondary preview port
-        "https://peep-in-pulse.vercel.app",  # Vercel production
+        "https://peep-in-pulse.vercel.app",  # Vercel production (default domain)
+        "https://peepintopulse.com",  # Custom apex domain
+        "https://www.peepintopulse.com",  # Custom www subdomain
     ],
     # Vercel preview deploys use dynamic subdomains
     # (peep-in-pulse-git-<branch>-<hash>.vercel.app); the regex lets
