@@ -11,7 +11,8 @@ const DEFAULT_WATCHLIST = [];
 const MAX_WATCHLIST = 10;
 
 export default function App() {
-  const { data, lastUpdated, loading, error } = usePulse();
+  const { data, lastUpdated, loading, error, bump: bumpPulsePolling } =
+    usePulse();
 
   const [watchlist, setWatchlist] = useState(() => {
     try {
@@ -31,18 +32,24 @@ export default function App() {
   const [compareSet, setCompareSet] = useState([]);
   const [searchInput, setSearchInput] = useState("");
 
-  const addTicker = useCallback((raw) => {
-    const sym = (raw || "").trim().toUpperCase();
-    if (!sym) return;
-    setWatchlist((w) => {
-      if (w.includes(sym) || w.length >= MAX_WATCHLIST) return w;
-      return [...w, sym];
-    });
-    setSelected((s) => s ?? sym);
-    fetch(`${API_URL}/tickers/add?ticker=${sym}`, {
-      method: "POST",
-    }).catch(() => {});
-  }, []);
+  const addTicker = useCallback(
+    (raw) => {
+      const sym = (raw || "").trim().toUpperCase();
+      if (!sym) return;
+      setWatchlist((w) => {
+        if (w.includes(sym) || w.length >= MAX_WATCHLIST) return w;
+        return [...w, sym];
+      });
+      setSelected((s) => s ?? sym);
+      fetch(`${API_URL}/tickers/add?ticker=${sym}`, {
+        method: "POST",
+      }).catch(() => {});
+      // Force fast /pulse polling so the newly-fetched ticker's data
+      // surfaces within ~5 s instead of waiting up to a full slow-poll.
+      bumpPulsePolling?.();
+    },
+    [bumpPulsePolling]
+  );
 
   const removeTicker = useCallback((sym) => {
     setWatchlist((w) => w.filter((t) => t !== sym));
@@ -135,13 +142,28 @@ export default function App() {
           {error && <ErrorBanner message={error.message} />}
           {loading && <div className="text-sm text-slate-500">Loading pulse…</div>}
 
-          {!loading && activeTab === "dashboard" && (
-            <Dashboard
-              ticker={effectiveSelected}
-              items={effectiveSelected ? data?.[effectiveSelected] ?? [] : []}
-              addTicker={addTicker}
-            />
-          )}
+          {!loading && activeTab === "dashboard" && (() => {
+            const items = effectiveSelected ? data?.[effectiveSelected] ?? [] : [];
+            // TEMPORARY DIAGNOSTIC — remove once we confirm whether NVDA/AMZN
+            // are missing from the pulse response (backend issue) or present
+            // but not flowing through (frontend issue).
+            // eslint-disable-next-line no-console
+            console.log("[Dashboard render]", {
+              selected,
+              effectiveSelected,
+              tickersInPulseData: Object.keys(data ?? {}),
+              itemsForSelected: items,
+              itemCount: items.length,
+              firstItemQuadrant: items[0]?.quadrant,
+            });
+            return (
+              <Dashboard
+                ticker={effectiveSelected}
+                items={items}
+                addTicker={addTicker}
+              />
+            );
+          })()}
 
           {!loading && activeTab === "compare" && (
             <CompareTab tickers={compareSet} onRemove={removeFromCompare} />
