@@ -50,7 +50,7 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
                 textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
               }}
             >
-              (Headlines · Impact)
+              (Headlines · Impact — use as reference, always verify yourself)
             </span>
           </span>
         </div>
@@ -95,7 +95,7 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
                 textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
               }}
             >
-              (Headlines · Impact)
+              (Headlines · Impact — use as reference, always verify yourself)
             </span>
           </span>
         </div>
