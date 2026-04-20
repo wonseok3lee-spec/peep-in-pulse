@@ -1,6 +1,6 @@
 import { BoltIcon, Dot } from "./icons";
 import { HoverTooltipList } from "./HoverTooltip";
-import { groupByQuadrant, parseTag, timeAgo } from "../lib/tags";
+import { groupByQuadrant, parseTag, timeAgo, isRecentSurprise } from "../lib/tags";
 
 const MAX_INTERNAL = 7;
 const MAX_EXTERNAL = 5;
@@ -133,11 +133,14 @@ export default function QuadrantGrid({ items, sortMode = "priority" }) {
 
 function Item({ item }) {
   const { isHigh, hasSurprise } = parseTag(item.tag);
+  const showBolt = isRecentSurprise(item);
 
   // Dot is suppressed for medium+surprise — the bolt alone conveys it.
+  // Keyed on `showBolt` (not raw hasSurprise) so an old-surprise item with a
+  // hidden bolt still gets the yellow dot back and remains visible.
   let dotColor = null;
   if (isHigh) dotColor = "#EF4444";
-  else if (!hasSurprise) dotColor = "#F59E0B";
+  else if (!showBolt) dotColor = "#F59E0B";
 
   let textCls;
   if (hasSurprise) textCls = "font-medium text-[#6366F1] dark:text-indigo-300";
@@ -150,7 +153,7 @@ function Item({ item }) {
       <div className="flex min-w-0 items-start gap-2">
         <div className="relative mt-[3px] flex w-3 shrink-0 items-center">
           {dotColor && <Dot color={dotColor} size={6} />}
-          {hasSurprise && (
+          {showBolt && (
             <BoltIcon
               className={`absolute ${
                 dotColor ? "-top-[1px]" : ""

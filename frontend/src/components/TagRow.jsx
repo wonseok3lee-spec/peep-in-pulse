@@ -1,6 +1,6 @@
 import { BoltIcon, Dot } from "./icons";
 import { HoverTooltip } from "./HoverTooltip";
-import { parseTag, timeAgo } from "../lib/tags";
+import { parseTag, timeAgo, isRecentSurprise } from "../lib/tags";
 
 /**
  * "Top Signals" bar — the top-3 most important items rendered as horizontal
@@ -36,6 +36,7 @@ export default function TagRow({ items }) {
 
 function SignalCard({ item }) {
   const { isHigh, hasSurprise } = parseTag(item.tag);
+  const showBolt = isRecentSurprise(item);
 
   // Left-border color: surprise wins over impact for the visual accent.
   let borderLeftColor;
@@ -56,11 +57,11 @@ function SignalCard({ item }) {
         {dotColor ? (
           <>
             <Dot color={dotColor} size={8} />
-            {hasSurprise && (
+            {showBolt && (
               <BoltIcon className="absolute -top-[2px] left-0 h-3.5 w-3.5 text-surprise" />
             )}
           </>
-        ) : hasSurprise ? (
+        ) : showBolt ? (
           <BoltIcon className="h-3.5 w-3.5 text-surprise" />
         ) : null}
       </div>
