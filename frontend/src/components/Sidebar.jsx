@@ -173,7 +173,7 @@ function SidebarRow({
   onDrop,
   onDragEnd,
 }) {
-  const { price, currency, loading, error } = usePrice(ticker);
+  const { price, changePct, currency, loading, error } = usePrice(ticker);
   const { points: sparkPoints, timestamps: sparkTimestamps } = useSparkline(
     ticker,
     sparkPeriod
@@ -181,9 +181,12 @@ function SidebarRow({
 
   const priceOk = price != null && !error;
 
-  // Period return derived from the sparkline's own points so the % / color
-  // always match what's drawn (1D = today, 5D = last week, 6M = 6 months).
+  // 1D reuses the dashboard card's day-over-day % (from usePrice) so both
+  // surfaces always agree on the headline number. 5D+ derives the period
+  // return from the sparkline's own points so the color / % match what's
+  // drawn (5D = last week, 6M = 6 months, etc.).
   const periodReturn = (() => {
+    if (sparkPeriod === "1D") return changePct;
     if (!sparkPoints || sparkPoints.length < 2) return null;
     const first = sparkPoints[0];
     const last = sparkPoints[sparkPoints.length - 1];
