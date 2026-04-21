@@ -20,8 +20,10 @@ from utils import unix_to_utc, utc_to_hhmm, within_last_hours
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
-# Drop anything older than this across all news sources.
-NEWS_MAX_AGE_DAYS = 30
+# Keep news ≤3 days old. Covers Friday-evening news surviving the weekend
+# skip through to Monday morning. Applies to Google News and Finviz; Yahoo
+# has its own stricter 24h cap at line 317.
+NEWS_MAX_AGE_DAYS = 3
 RETRY_BACKOFF_SECONDS = 1.0
 
 # Article content fetch parameters. 3 s per URL + 8 parallel workers keeps
