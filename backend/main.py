@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -35,32 +34,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_MINUTES = 5
-
-NO_IMPACT_PATTERNS = re.compile(
-    r"no\s+(direct\s+)?impact"
-    r"|unrelated"
-    r"|not\s+directly"
-    r"|may\s+not\s+significantly"
-    r"|no\s+effect"
-    r"|indirectly\s+affect",
-    re.IGNORECASE,
-)
-
-
-def _should_drop(item: dict) -> tuple[bool, str]:
-    """Return (drop, reason). Two checks applied independently (belt-and-suspenders):
-    1. LLM-marked off_topic via relevance field
-    2. Model self-admits no impact in summary/reason text
-    """
-    if item.get("relevance") == "off_topic":
-        return True, "off_topic"
-
-    text = (item.get("summary") or "") + " " + (item.get("reason") or "")
-    if NO_IMPACT_PATTERNS.search(text):
-        return True, "no_impact_text"
-
-    return False, ""
-
 
 # Shared snapshot guarded by a lock. Scheduler thread writes; request handlers read.
 _state_lock = threading.Lock()
@@ -224,25 +197,6 @@ def _build_snapshot(
     tagged = tag_all(news)
     snapshot: dict[str, list[dict[str, Any]]] = {}
     for ticker, items in tagged.items():
-        kept: list[dict[str, Any]] = []
-        drop_counts = {"off_topic": 0, "no_impact_text": 0}
-        for item in items:
-            drop, reason = _should_drop(item)
-            if drop:
-                drop_counts[reason] += 1
-                logger.debug(
-                    f"[filter] {ticker}: dropped item "
-                    f"reason={reason} headline={item.get('original_title', '')[:60]!r}"
-                )
-            else:
-                kept.append(item)
-
-        if any(drop_counts.values()):
-            logger.info(
-                f"[filter] {ticker}: kept {len(kept)}/{len(items)} "
-                f"(off_topic={drop_counts['off_topic']}, no_impact={drop_counts['no_impact_text']})"
-            )
-
         snapshot[ticker] = [
             {
                 "tag": it["tag"],
@@ -257,7 +211,7 @@ def _build_snapshot(
                 else None,
                 "url": it.get("url", None),
             }
-            for it in kept
+            for it in items
         ]
 
     logger.info(
