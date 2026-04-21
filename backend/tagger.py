@@ -58,7 +58,8 @@ Return a JSON array only — no explanation. One object per input item, same ord
     "importance": "high" or "medium",
     "surprise": true or false,
     "reason": "MAX 5 WORDS — why this matters (legacy, keep short)",
-    "quadrant": "internal" or "external"
+    "quadrant": "internal" or "external",
+    "relevance": "primary" or "passing" or "off_topic"
   }
 ]
 
@@ -97,13 +98,46 @@ Do NOT put importance values like "medium" or "high" in the quadrant field. Do N
 - external: This news is about the broader market, economy, competitors, or regulations.
   Examples: Fed rates, sector trends, competitor news, geopolitical events, market rally.
 
-When the headline is primarily about a different company (not the given ticker), use 'external'."""
+When the headline is primarily about a different company (not the given ticker), use 'external'.
+
+=== RELEVANCE RULES (be strict) ===
+relevance MUST be exactly one of: 'primary' | 'passing' | 'off_topic'
+- primary: The given ticker is a main subject of the article. Include in feed.
+- passing: The given ticker is mentioned but the article is mostly about something else (sector, peer, market). Still include, but in external quadrant.
+- off_topic: The given ticker is barely related — mentioned only in a list, ticker symbol appears but article is about a different company entirely, or the article admits no impact on the ticker. DROP from feed.
+
+When relevance = off_topic, the item will be dropped before reaching the user. Be willing to mark items as off_topic — quality over quantity.
+
+EXAMPLES of off_topic (would be dropped):
+- ticker=ORCL, headline='Snap announced major layoffs cutting 1,000 jobs'
+  → relevance: 'off_topic' (article is entirely about Snap, not Oracle)
+- ticker=TSLA, headline="Apple's stock performance under Tim Cook analyzed"
+  → relevance: 'off_topic' (article is about Apple, not Tesla)
+- ticker=MSFT, summary='No direct impact on Microsoft expected'
+  → relevance: 'off_topic' (model itself admits no impact)
+
+EXAMPLES of passing (kept, external):
+- ticker=ORCL, headline='10 software stocks moving today'
+  → relevance: 'passing' (Oracle is one of many in a list)
+- ticker=TSLA, headline='EV sector faces tariff pressure'
+  → relevance: 'passing' (sector news, indirectly affects Tesla)
+
+EXAMPLES of primary (kept, internal or external based on quadrant rules):
+- ticker=ORCL, headline='A legendary value fund just bet big on Oracle'
+  → relevance: 'primary', quadrant: 'internal' (direct Oracle news)
+- ticker=NKTR, headline='NKTR stock surged 18% after data release'
+  → relevance: 'primary', quadrant: 'internal'"""
 
 VALID_QUADRANTS: frozenset[str] = frozenset({"internal", "external"})
 # Safer fallback than "internal": when the model slips (e.g. outputs "medium"
 # into the quadrant field, which we've seen empirically), promoting unrelated
 # news to "company-specific" is worse than bucketing it as external market news.
 DEFAULT_QUADRANT = "external"
+
+VALID_RELEVANCE: frozenset[str] = frozenset({"primary", "passing", "off_topic"})
+# On invalid/missing relevance, default to "passing" rather than "off_topic" —
+# we'd rather show a borderline item than silently drop one due to a model slip.
+DEFAULT_RELEVANCE = "passing"
 
 # Lower rank = higher priority when selecting the top 3.
 TAG_PRIORITY: dict[str, int] = {
@@ -138,7 +172,7 @@ def _strip_code_fences(text: str) -> str:
     return "\n".join(lines).strip()
 
 
-ARTICLE_EXCERPT_CHARS = 500
+ARTICLE_EXCERPT_CHARS = 1500
 
 
 def _fallback_batch(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -156,6 +190,7 @@ def _fallback_batch(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "surprise": False,
             "reason": "parse error",
             "quadrant": DEFAULT_QUADRANT,
+            "relevance": "passing",
         }
         for it in items
     ]
@@ -242,6 +277,7 @@ def _call_tagger(
                     "surprise": False,
                     "reason": "alignment failed",
                     "quadrant": DEFAULT_QUADRANT,
+                    "relevance": "passing",
                 }
             )
         else:
@@ -278,6 +314,10 @@ def _tag_one_ticker(
         quadrant = (
             raw_quadrant if raw_quadrant in VALID_QUADRANTS else DEFAULT_QUADRANT
         )
+        raw_relevance = str(tag_obj.get("relevance", DEFAULT_RELEVANCE)).lower()
+        relevance = (
+            raw_relevance if raw_relevance in VALID_RELEVANCE else DEFAULT_RELEVANCE
+        )
         # Prefer the model's summaries; fall back to the original title if empty.
         short_headline = (
             str(tag_obj.get("short_headline") or "").strip() or item["title"]
@@ -297,6 +337,7 @@ def _tag_one_ticker(
             "tag": _display_tag(importance, surprise),
             "reason": tag_obj.get("reason", ""),
             "quadrant": quadrant,
+            "relevance": relevance,
         }
         if raw_quadrant != quadrant:
             logger.warning(
