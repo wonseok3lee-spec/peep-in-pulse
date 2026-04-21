@@ -11,7 +11,13 @@ export default function UpdatesTab() {
       </p>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        <h2
+          className="mb-3 text-sm font-semibold uppercase tracking-widest"
+          style={{
+            color: "#7C3AED",
+            textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
+          }}
+        >
           Weekdays
         </h2>
         <ul className="space-y-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
@@ -43,7 +49,13 @@ export default function UpdatesTab() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        <h2
+          className="mb-3 text-sm font-semibold uppercase tracking-widest"
+          style={{
+            color: "#7C3AED",
+            textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
+          }}
+        >
           Weekends
         </h2>
         <ul className="space-y-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
@@ -63,25 +75,42 @@ export default function UpdatesTab() {
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        <h2
+          className="mb-3 text-sm font-semibold uppercase tracking-widest"
+          style={{
+            color: "#7C3AED",
+            textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
+          }}
+        >
           Why this schedule?
         </h2>
         <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-          Most meaningful news breaks during market hours. Pausing overnight
-          and on weekends reduces costs without sacrificing relevance. Prices
-          and charts update every 60 seconds independently and are not
+          Most meaningful news breaks during market hours.
+          <br />
+          Pausing overnight and on weekends reduces costs without sacrificing
+          relevance.
+          <br />
+          Prices and charts update every 60 seconds independently and are not
           affected by this schedule.
         </p>
       </section>
 
       <section className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        <h2
+          className="mb-3 text-sm font-semibold uppercase tracking-widest"
+          style={{
+            color: "#7C3AED",
+            textShadow: "0 0 8px rgba(124, 58, 237, 0.5)",
+          }}
+        >
           What the &ldquo;Updated X ago&rdquo; badge means
         </h2>
         <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-          This shows how long ago the last news refresh happened. During
-          market hours it will usually read 1–15 minutes. Longer values are
-          expected outside market hours.
+          This shows how long ago the last news refresh happened.
+          <br />
+          During market hours it will usually read 1–15 minutes.
+          <br />
+          Longer values are expected outside market hours.
         </p>
       </section>
     </div>
