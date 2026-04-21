@@ -94,6 +94,37 @@ export function SparklineWithTooltip({
           />
         )}
       </svg>
+      {/* Purple endpoint dots. Rendered as HTML divs so they stay circular
+          regardless of the SVG's preserveAspectRatio="none" horizontal
+          stretching. Positioned at left/right edges with translateY(-50%)
+          so the 6px dots sit fully inside the container bounds (toY clamps
+          to [3, H-3] so the vertical extent never overflows either). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          width: "6px",
+          height: "6px",
+          left: 0,
+          top: `${toY(points[0])}px`,
+          transform: "translateY(-50%)",
+          background: "#7C3AED",
+          filter: "drop-shadow(0 0 4px rgba(124, 58, 237, 0.7))",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          width: "6px",
+          height: "6px",
+          right: 0,
+          top: `${toY(points[points.length - 1])}px`,
+          transform: "translateY(-50%)",
+          background: "#7C3AED",
+          filter: "drop-shadow(0 0 4px rgba(124, 58, 237, 0.7))",
+        }}
+      />
       {/* Hover price tooltip */}
       {hover && (
         <div
