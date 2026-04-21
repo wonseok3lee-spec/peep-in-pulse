@@ -15,10 +15,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 import yfinance as yf
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -33,7 +35,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-REFRESH_INTERVAL_MINUTES = 5
+ET_TZ = ZoneInfo("America/New_York")
 
 # Shared snapshot guarded by a lock. Scheduler thread writes; request handlers read.
 _state_lock = threading.Lock()
@@ -228,6 +230,10 @@ def _build_snapshot(
 def _refresh_pulse() -> None:
     """One fetch → tag → store cycle. Runs on the scheduler's thread."""
     global _last_result, _last_updated, _snapshot_building
+    logger.info(
+        "_refresh_pulse triggered at ET: %s",
+        datetime.now(ET_TZ).strftime("%Y-%m-%d %H:%M:%S %Z %A"),
+    )
     with _state_lock:
         all_tickers = list(TICKERS) + [
             t for t in _extra_tickers if t not in TICKERS
@@ -268,14 +274,42 @@ async def lifespan(app: FastAPI):
     # the inner asyncio.run() (in fetch_all) a clean host thread instead
     # of clashing with the running lifespan loop.
     asyncio.get_running_loop().run_in_executor(None, _refresh_pulse)
-    _scheduler.add_job(
-        _refresh_pulse,
-        trigger="interval",
-        minutes=REFRESH_INTERVAL_MINUTES,
-        id="pulse_refresh",
-        max_instances=1,
-        coalesce=True,
-    )
+
+    # Market-aware refresh schedule (America/New_York, DST-aware).
+    # Each trigger below is one APScheduler job on _refresh_pulse; windows
+    # are non-overlapping so no minute fires twice.
+    job_specs = [
+        # Premarket Mon–Fri 04:00–08:30 ET, every 30 min
+        ("pulse_premarket_half", CronTrigger(
+            day_of_week="mon-fri", hour="4-8", minute="0,30", timezone=ET_TZ)),
+        # Premarket closer: Mon–Fri 09:00 ET (top of hour only; 09:30 belongs
+        # to the regular-hours schedule below)
+        ("pulse_premarket_nine", CronTrigger(
+            day_of_week="mon-fri", hour=9, minute=0, timezone=ET_TZ)),
+        # Regular hours opener: Mon–Fri 09:30 and 09:45 ET
+        ("pulse_rth_open", CronTrigger(
+            day_of_week="mon-fri", hour=9, minute="30,45", timezone=ET_TZ)),
+        # Regular hours body: Mon–Fri 10:00–15:45 ET, every 15 min
+        ("pulse_rth_body", CronTrigger(
+            day_of_week="mon-fri", hour="10-15", minute="0,15,30,45", timezone=ET_TZ)),
+        # Aftermarket earnings window: Mon–Fri 16:00 and 18:00 ET only
+        ("pulse_aftermarket", CronTrigger(
+            day_of_week="mon-fri", hour="16,18", minute=0, timezone=ET_TZ)),
+        # Sunday evening reopen: Sun 18:00–23:00 ET, every 60 min
+        ("pulse_sun_evening", CronTrigger(
+            day_of_week="sun", hour="18-23", minute=0, timezone=ET_TZ)),
+        # Monday overnight tail: Mon 00:00–03:00 ET, every 60 min
+        ("pulse_mon_overnight", CronTrigger(
+            day_of_week="mon", hour="0-3", minute=0, timezone=ET_TZ)),
+    ]
+    for job_id, trigger in job_specs:
+        _scheduler.add_job(
+            _refresh_pulse,
+            trigger=trigger,
+            id=job_id,
+            max_instances=1,
+            coalesce=True,
+        )
     _scheduler.start()
     try:
         yield
