@@ -569,15 +569,18 @@ async def proxy_fundamentals(ticker: str):
 
 @app.post("/tickers/add")
 async def add_ticker(ticker: str):
-    """Immediately fetch news for a newly added ticker."""
+    """Immediately fetch news for a newly added ticker.
+
+    Unconditionally fires a single-ticker background fetch on every explicit
+    add — users expect fresh news within seconds of clicking add, even if the
+    ticker happened to still be in _last_result from a prior session.
+    """
     ticker = ticker.upper().strip()
     if not ticker:
         return {"status": "ok", "ticker": ticker}
     with _state_lock:
-        already_cached = ticker in _last_result
         _extra_tickers.add(ticker)
-    if not already_cached:
-        asyncio.create_task(_fetch_and_cache_ticker(ticker))
+    asyncio.create_task(_fetch_and_cache_ticker(ticker))
     return {"status": "ok", "ticker": ticker}
 
 
