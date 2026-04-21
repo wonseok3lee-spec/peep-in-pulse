@@ -7,6 +7,7 @@ import { MoreIcon } from "./icons";
 const TABS = [
   { key: "dashboard", label: "Dashboard" },
   { key: "compare", label: "Compare" },
+  { key: "updates", label: "Updates" },
 ];
 
 export default function Navbar({

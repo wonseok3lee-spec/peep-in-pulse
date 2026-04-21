@@ -4,6 +4,7 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import CompareTab from "./components/CompareTab";
+import UpdatesTab from "./components/UpdatesTab";
 import { MAX_COMPARE } from "./lib/colors";
 import { API_URL } from "./lib/api";
 
@@ -202,6 +203,8 @@ export default function App() {
           {!loading && activeTab === "compare" && (
             <CompareTab tickers={compareSet} onRemove={removeFromCompare} />
           )}
+
+          {activeTab === "updates" && <UpdatesTab />}
 
         </main>
       </div>
