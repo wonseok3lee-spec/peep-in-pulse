@@ -1,6 +1,6 @@
 export default function UpdatesTab() {
   return (
-    <div className="mx-auto max-w-[700px] px-2 py-4">
+    <div className="rounded-xl border border-slate-100 bg-white px-6 py-6 shadow-sm transition-colors dark:border-zinc-700/50 dark:bg-zinc-900">
       <h1 className="mb-6 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
         How news updates work
       </h1>
