@@ -29,7 +29,7 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
-function MoverColumn({ id, label, onTickerClick, capThreshold }) {
+function MoverColumn({ id, label, onTickerClick, capThreshold, watchlistFull }) {
   const { data, loading, error } = useScreener(id);
   // Filter BEFORE slicing to ROW_LIMIT so a strict cap filter (e.g. $10B+)
   // can still surface up to 10 qualifying names from the 25-item raw
@@ -81,7 +81,17 @@ function MoverColumn({ id, label, onTickerClick, capThreshold }) {
                   key={row.ticker || i}
                   type="button"
                   onClick={() => onTickerClick?.(row.ticker)}
-                  className="group -mx-1 flex w-full items-baseline gap-2 rounded px-1 py-1 text-left text-xs transition-colors hover:bg-slate-100 dark:hover:bg-zinc-800"
+                  disabled={watchlistFull}
+                  title={
+                    watchlistFull
+                      ? "Watchlist is full — remove a ticker to add a new one."
+                      : undefined
+                  }
+                  className={`group -mx-1 flex w-full items-baseline gap-2 rounded px-1 py-1 text-left text-xs transition-colors ${
+                    watchlistFull
+                      ? "cursor-not-allowed opacity-50"
+                      : "hover:bg-slate-100 dark:hover:bg-zinc-800"
+                  }`}
                 >
                   <span className="w-4 shrink-0 font-mono text-slate-400">
                     {i + 1}.
@@ -119,7 +129,7 @@ function MoverColumn({ id, label, onTickerClick, capThreshold }) {
   );
 }
 
-export default function TopMoversSection({ onTickerClick }) {
+export default function TopMoversSection({ onTickerClick, watchlistFull }) {
   const [capFilter, setCapFilter] = useState("all");
   const activeFilter =
     CAP_FILTERS.find((f) => f.value === capFilter) ?? CAP_FILTERS[0];
@@ -155,6 +165,7 @@ export default function TopMoversSection({ onTickerClick }) {
               label={col.label}
               onTickerClick={onTickerClick}
               capThreshold={activeFilter.threshold}
+              watchlistFull={watchlistFull}
             />
           </div>
         ))}

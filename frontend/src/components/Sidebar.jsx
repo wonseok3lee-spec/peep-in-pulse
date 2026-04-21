@@ -24,7 +24,7 @@ function formatTicker(ticker) {
   return { displaySymbol, exchangeBadge };
 }
 
-const MAX_WATCHLIST = 10;
+const MAX_WATCHLIST = 6;
 
 export default function Sidebar({
   watchlist,

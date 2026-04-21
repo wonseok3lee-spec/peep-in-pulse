@@ -8,7 +8,8 @@ import { MAX_COMPARE } from "./lib/colors";
 import { API_URL } from "./lib/api";
 
 const DEFAULT_WATCHLIST = [];
-const MAX_WATCHLIST = 10;
+const MAX_WATCHLIST_SIZE = 6;
+const WATCHLIST_FULL_MESSAGE = `Watchlist is full (${MAX_WATCHLIST_SIZE} max). Remove a ticker to add a new one.`;
 
 export default function App() {
   const { data, lastUpdated, loading, error, bump: bumpPulsePolling } =
@@ -49,13 +50,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [compareSet, setCompareSet] = useState([]);
   const [searchInput, setSearchInput] = useState("");
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const watchlistFull = watchlist.length >= MAX_WATCHLIST_SIZE;
 
   const addTicker = useCallback(
     (raw) => {
       const sym = (raw || "").trim().toUpperCase();
       if (!sym) return;
+      if (watchlist.includes(sym)) return;
+      if (watchlist.length >= MAX_WATCHLIST_SIZE) {
+        setToast({ id: Date.now(), message: WATCHLIST_FULL_MESSAGE });
+        return;
+      }
       setWatchlist((w) => {
-        if (w.includes(sym) || w.length >= MAX_WATCHLIST) return w;
+        if (w.includes(sym) || w.length >= MAX_WATCHLIST_SIZE) return w;
         return [...w, sym];
       });
       setSelected((s) => s ?? sym);
@@ -66,7 +81,7 @@ export default function App() {
       // surfaces within ~5 s instead of waiting up to a full slow-poll.
       bumpPulsePolling?.();
     },
-    [bumpPulsePolling]
+    [watchlist, bumpPulsePolling]
   );
 
   const removeTicker = useCallback((sym) => {
@@ -179,6 +194,7 @@ export default function App() {
                 ticker={effectiveSelected}
                 items={items}
                 addTicker={addTicker}
+                watchlistFull={watchlistFull}
               />
             );
           })()}
@@ -189,6 +205,17 @@ export default function App() {
 
         </main>
       </div>
+
+      {toast && (
+        <div
+          key={toast.id}
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-900 shadow-lg dark:border-amber-700/60 dark:bg-amber-900/50 dark:text-amber-100"
+        >
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
