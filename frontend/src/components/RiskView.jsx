@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { useCompareData } from "../hooks/useCompareData";
 import { useFundamentals } from "../hooks/useFundamentals";
+import { usePrices } from "../hooks/usePrices";
 import { TICKER_COLORS } from "../lib/colors";
 import { InsightGrid } from "./InsightCard";
 
@@ -88,6 +89,10 @@ export function RiskView({ tickers, periodKey }) {
     tickers,
     periodKey
   );
+  // Shares usePrice's module registry; for 1D we prefer usePrice.changePct
+  // (prev close → current) over useCompareData's intraday-only series so the
+  // scatter agrees with Sidebar + Dashboard on gap-up/down days.
+  const priceByTicker = usePrices(tickers);
 
   const loading = fLoading || hLoading;
 
@@ -100,7 +105,19 @@ export function RiskView({ tickers, periodKey }) {
 
         const firstClose = hist[0].close;
         const lastClose = hist[hist.length - 1].close;
-        const periodReturn = ((lastClose - firstClose) / firstClose) * 100;
+        const intradayReturn = ((lastClose - firstClose) / firstClose) * 100;
+
+        // 1D unifies with Sidebar/Dashboard via usePrice.changePct so a gap
+        // open (prev close → today's open) is included in the headline %.
+        // Any other period: keep first/last close math — daily+ bars already
+        // capture the prev-close reference, so no gap problem to fix.
+        let periodReturn;
+        if (periodKey === "1D") {
+          const cp = priceByTicker[t]?.changePct;
+          periodReturn = cp == null ? intradayReturn : cp;
+        } else {
+          periodReturn = intradayReturn;
+        }
 
         return {
           ticker: t,
@@ -112,7 +129,7 @@ export function RiskView({ tickers, periodKey }) {
         };
       })
       .filter((p) => p !== null);
-  }, [tickers, fundamentals, history]);
+  }, [tickers, fundamentals, history, periodKey, priceByTicker]);
 
   if (loading) {
     return (

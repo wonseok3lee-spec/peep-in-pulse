@@ -120,3 +120,7 @@ export function usePrice(ticker) {
 
   return state;
 }
+
+// Exposed for the multi-ticker usePrices hook so it can share this module's
+// registry (single poll loop per symbol across Sidebar + Risk + anywhere else).
+export { _subscribe as subscribePrice };
