@@ -258,6 +258,23 @@ export default function CompareTab({ tickers, onRemove }) {
                     : "border-slate-200 bg-white text-slate-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-400"
                 }`}
               />
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date();
+                  const yyyy = today.getFullYear();
+                  const mm = String(today.getMonth() + 1).padStart(2, "0");
+                  const dd = String(today.getDate()).padStart(2, "0");
+                  const iso = `${yyyy}-${mm}-${dd}`;
+                  setCustomEnd(iso);
+                  setCustomEndInput(isoToUs(iso));
+                }}
+                className="ml-1 flex h-7 items-center justify-center rounded-md border border-violet-300 bg-violet-50 px-2.5 text-xs font-medium text-violet-600 transition-all hover:border-violet-500 hover:bg-violet-500 hover:text-white dark:border-violet-500 dark:bg-violet-950/40 dark:text-violet-300 dark:hover:bg-violet-500 dark:hover:text-white"
+                title="Set end date to today"
+                aria-label="Set end date to today"
+              >
+                Now
+              </button>
               {isCustomActive && (
                 <button
                   type="button"
