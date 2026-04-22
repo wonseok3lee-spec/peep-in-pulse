@@ -426,7 +426,13 @@ export default function CompareTab({ tickers, onRemove }) {
                         <span className="text-slate-500 dark:text-slate-400">
                           Best
                         </span>
-                        <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                        <span
+                          className={`font-mono ${
+                            best.pct >= 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-slate-700 dark:text-slate-200"
+                          }`}
+                        >
                           <span className="font-semibold">{best.ticker}</span>{" "}
                           {best.pct >= 0 ? "+" : ""}
                           {best.pct.toFixed(2)}%
@@ -436,7 +442,13 @@ export default function CompareTab({ tickers, onRemove }) {
                         <span className="text-slate-500 dark:text-slate-400">
                           Worst
                         </span>
-                        <span className="font-mono text-red-500 dark:text-red-400">
+                        <span
+                          className={`font-mono ${
+                            worst.pct < 0
+                              ? "text-red-500 dark:text-red-400"
+                              : "text-slate-700 dark:text-slate-200"
+                          }`}
+                        >
                           <span className="font-semibold">{worst.ticker}</span>{" "}
                           {worst.pct >= 0 ? "+" : ""}
                           {worst.pct.toFixed(2)}%
@@ -447,7 +459,7 @@ export default function CompareTab({ tickers, onRemove }) {
                           Spread
                         </span>
                         <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">
-                          {spread.toFixed(1)} pts
+                          {spread.toFixed(1)} %p
                         </span>
                       </div>
                     </div>
