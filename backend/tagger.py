@@ -65,10 +65,10 @@ Return a JSON array only — no explanation. One object per input item, same ord
 Rules:
 - high = could move the ticker's stock price significantly today
 - medium = notable but likely already priced in
-- surprise = true only if sudden, unexpected, unscheduled
-- surprise = false if routine or scheduled
-- Regular quarterly earnings = surprise is false UNLESS guidance is significantly shocking
-- If the headline is primarily about a different company than the given ticker, set importance = "medium" AND surprise = false
+- surprise = true if the NEWS CONTENT is unexpected, regardless of whether the event (earnings, Fed meeting, product launch) was on the calendar. What matters is: does this outcome deviate from what was already priced in?
+- surprise = true for: earnings beats or misses that move the stock, guidance surprises (up or down), M&A announcements, unexpected executive departures, regulatory actions, abrupt price moves with a named cause.
+- surprise = false for: pre-announced events with in-line results, routine analyst commentary with no new data, broad market commentary, items primarily about a different company, historical/retrospective summaries.
+- If the headline is primarily about a different company than the given ticker, set importance = "medium" AND surprise = false.
 
 === summary — MAX 15 WORDS ===
 A single-sentence insight explaining what this news means for the stock.
