@@ -11,13 +11,13 @@ export function parseTag(tag = "") {
 }
 
 // Bolt icon is gated to fresh news only — the underlying surprise flag can
-// still linger on 18h-old stories (used for sort priority etc.), but the
-// ⚡ visual would be misleading on anything that old.
-const SURPRISE_MAX_AGE_MS = 3 * 60 * 60 * 1000;
+// still linger on older stories (used for sort priority etc.), but the
+// ⚡ visual would be misleading once the news is no longer "breaking".
+const SURPRISE_MAX_AGE_MS = 10 * 60 * 60 * 1000;
 
 /**
  * Render-time gate: true iff the item is tagged as a surprise AND was
- * published within the last 3 hours. Missing or invalid `published_time`
+ * published within the last 10 hours. Missing or invalid `published_time`
  * → false (no ⚡).
  */
 export function isRecentSurprise(item, now = Date.now()) {
