@@ -172,7 +172,7 @@ export default function App() {
           onReorder={reorderWatchlist}
         />
 
-        <main className="min-w-0 flex-1 p-6">
+        <main className="min-w-0 flex-1 px-6 pt-4 pb-6">
           {error && <ErrorBanner message={error.message} />}
           {loading && <div className="text-sm text-slate-500">Loading pulse…</div>}
 
