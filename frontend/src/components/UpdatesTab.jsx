@@ -31,7 +31,13 @@ export default function UpdatesTab() {
             <ul className="space-y-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300">
               <li>
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  Pre-market (4:00 AM – 9:00 AM):
+                  Pre-market (4:00 AM – 8:00 AM):
+                </span>{" "}
+                every 2 hours
+              </li>
+              <li>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  Pre-market (8:00 AM – 9:00 AM):
                 </span>{" "}
                 every 30 minutes
               </li>
@@ -43,13 +49,13 @@ export default function UpdatesTab() {
               </li>
               <li>
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  After-market (4:00 PM, 6:00 PM):
+                  After-market (4:00 PM – 5:00 PM):
                 </span>{" "}
-                twice only
+                every 15 minutes
               </li>
               <li>
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  Overnight (8:00 PM – 4:00 AM):
+                  After-hours & Overnight (5:00 PM – 4:00 AM):
                 </span>{" "}
                 paused
               </li>
@@ -69,7 +75,7 @@ export default function UpdatesTab() {
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
                   Sunday 6 PM – Monday 4 AM:
                 </span>{" "}
-                every hour (Asian markets reopen)
+                every 2 hours (Asian markets reopen)
               </li>
             </ul>
           </section>

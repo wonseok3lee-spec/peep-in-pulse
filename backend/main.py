@@ -279,9 +279,13 @@ async def lifespan(app: FastAPI):
     # Each trigger below is one APScheduler job on _refresh_pulse; windows
     # are non-overlapping so no minute fires twice.
     job_specs = [
-        # Premarket Mon–Fri 04:00–08:30 ET, every 30 min
-        ("pulse_premarket_half", CronTrigger(
-            day_of_week="mon-fri", hour="4-8", minute="0,30", timezone=ET_TZ)),
+        # Premarket early: Mon–Fri 04:00, 06:00 ET (every 2 hours; 08:00
+        # belongs to the late bucket below)
+        ("pulse_premarket_early", CronTrigger(
+            day_of_week="mon-fri", hour="4,6", minute=0, timezone=ET_TZ)),
+        # Premarket late: Mon–Fri 08:00, 08:30 ET (every 30 min as open nears)
+        ("pulse_premarket_late", CronTrigger(
+            day_of_week="mon-fri", hour=8, minute="0,30", timezone=ET_TZ)),
         # Premarket closer: Mon–Fri 09:00 ET (top of hour only; 09:30 belongs
         # to the regular-hours schedule below)
         ("pulse_premarket_nine", CronTrigger(
@@ -292,15 +296,17 @@ async def lifespan(app: FastAPI):
         # Regular hours body: Mon–Fri 10:00–15:45 ET, every 15 min
         ("pulse_rth_body", CronTrigger(
             day_of_week="mon-fri", hour="10-15", minute="0,15,30,45", timezone=ET_TZ)),
-        # Aftermarket earnings window: Mon–Fri 16:00 and 18:00 ET only
+        # Aftermarket earnings window: Mon–Fri 16:00–16:45 ET, every 15 min
+        # (pause begins at 17:00; no fire at the pause boundary)
         ("pulse_aftermarket", CronTrigger(
-            day_of_week="mon-fri", hour="16,18", minute=0, timezone=ET_TZ)),
-        # Sunday evening reopen: Sun 18:00–23:00 ET, every 60 min
+            day_of_week="mon-fri", hour=16, minute="0,15,30,45", timezone=ET_TZ)),
+        # Sunday evening reopen: Sun 18:00, 20:00, 22:00 ET (every 2 hours)
         ("pulse_sun_evening", CronTrigger(
-            day_of_week="sun", hour="18-23", minute=0, timezone=ET_TZ)),
-        # Monday overnight tail: Mon 00:00–03:00 ET, every 60 min
+            day_of_week="sun", hour="18,20,22", minute=0, timezone=ET_TZ)),
+        # Monday overnight tail: Mon 00:00, 02:00 ET (every 2 hours;
+        # 04:00 is covered by pulse_premarket_early)
         ("pulse_mon_overnight", CronTrigger(
-            day_of_week="mon", hour="0-3", minute=0, timezone=ET_TZ)),
+            day_of_week="mon", hour="0,2", minute=0, timezone=ET_TZ)),
     ]
     for job_id, trigger in job_specs:
         _scheduler.add_job(
