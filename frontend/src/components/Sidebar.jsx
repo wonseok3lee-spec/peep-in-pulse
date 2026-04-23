@@ -346,6 +346,9 @@ function SidebarRow({
                 ahPrice={ah.ahPrice}
                 ahTimestamp={ah.ahTimestamp}
                 ahChangePct={ah.ahChangePct}
+                preMarketPrice={ah.preMarketPrice}
+                preMarketChangePct={ah.preMarketChangePct}
+                preTimestamp={ah.preTimestamp}
                 marketState={ah.marketState}
               />
             </div>

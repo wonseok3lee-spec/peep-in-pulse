@@ -8,12 +8,16 @@ export function SparklineWithTooltip({
   height = 48,
   timestamps = [],
   period = "1D",
-  // After-hours overlay. Callers pass these straight from useAHPrice;
+  // Extended-hours overlay. Callers pass these straight from useAHPrice;
   // the sparkline self-gates on period === "1D" + presence + same-ET-day,
   // so missing/stale/foreign-ticker data naturally renders nothing extra.
+  // Pre-market mirrors after-hours: dashed line + dot on the opposite edge.
   ahPrice = null,
   ahTimestamp = null,
   ahChangePct = null,
+  preMarketPrice = null,
+  preMarketChangePct = null,
+  preTimestamp = null,
   marketState = null,
 }) {
   const [hover, setHover] = useState(null);
@@ -54,31 +58,48 @@ export function SparklineWithTooltip({
   const W = 100;
   const H = height;
 
-  // When valid AH data is supplied for today, compress the RTH line to 85%
-  // of the viewBox width and reserve the remaining 15% for a dashed close
-  // marker (at 85%) + a small colored AH dot (at 92%). Outside 1D or without
-  // AH data, RTH_END_X === W and every coordinate math below collapses
-  // back to the original behavior.
+  // Extended-hours layout: reserve the left 15% for pre-market when
+  // showPre and/or the right 15% for after-hours when showAh. The RTH
+  // line maps [0, N-1] → [RTH_START_X, RTH_END_X]. With neither gate
+  // active, start/end collapse to 0/W and every coordinate below matches
+  // the original full-width behavior exactly.
   const showAh =
     period === "1D" &&
     ahPrice != null &&
     ahTimestamp != null &&
     isSameEtDay(ahTimestamp);
+  const showPre =
+    period === "1D" &&
+    preMarketPrice != null &&
+    preTimestamp != null &&
+    isSameEtDay(preTimestamp);
+  const RTH_START_X = showPre ? 15 : 0;
   const RTH_END_X = showAh ? 85 : W;
   const AH_X = 92;
+  const PRE_X = 8;
 
-  const toX = (i) => (i / (points.length - 1)) * RTH_END_X;
+  const toX = (i) =>
+    RTH_START_X + (i / (points.length - 1)) * (RTH_END_X - RTH_START_X);
   const toY = (v) => H - ((v - min) / range) * (H - 6) - 3;
 
-  // AH dot Y uses the same price scale as the RTH line. Clamp into
-  // [3, H-3] so the 5px dot stays fully inside the container even when
-  // AH price blew past the RTH range (post-earnings gaps).
+  // AH / PRE dot Y uses the same price scale as the RTH line. Clamp into
+  // [3, H-3] so the 5px dot stays fully inside the container even when the
+  // extended-hours price blew past the RTH range (earnings gaps).
   const ahDotY = showAh
     ? Math.max(3, Math.min(H - 3, toY(ahPrice)))
     : null;
   const ahIsDown = ahChangePct != null && ahChangePct < 0;
   const ahDotColor = ahIsDown ? "#EF4444" : "#16A34A";
   const ahDotGlow = ahIsDown
+    ? "rgba(239, 68, 68, 0.7)"
+    : "rgba(22, 163, 74, 0.7)";
+
+  const preDotY = showPre
+    ? Math.max(3, Math.min(H - 3, toY(preMarketPrice)))
+    : null;
+  const preIsDown = preMarketChangePct != null && preMarketChangePct < 0;
+  const preDotColor = preIsDown ? "#EF4444" : "#16A34A";
+  const preDotGlow = preIsDown
     ? "rgba(239, 68, 68, 0.7)"
     : "rgba(22, 163, 74, 0.7)";
 
@@ -90,9 +111,10 @@ export function SparklineWithTooltip({
     const xPx = e.clientX - rect.left;
     const xPctFull = (xPx / rect.width) * 100;
     // Clamp hover to the RTH zone so the cursor line never strays into
-    // the AH zone implying data that isn't there.
-    const xInRth = Math.max(0, Math.min(xPctFull, RTH_END_X));
-    const idx = Math.round((xInRth / RTH_END_X) * (points.length - 1));
+    // either extended-hours zone implying data that isn't there.
+    const xInRth = Math.max(RTH_START_X, Math.min(xPctFull, RTH_END_X));
+    const rthSpan = RTH_END_X - RTH_START_X;
+    const idx = Math.round(((xInRth - RTH_START_X) / rthSpan) * (points.length - 1));
     const clamped = Math.max(0, Math.min(points.length - 1, idx));
     setHover({ idx: clamped, price: points[clamped], x: xInRth });
   };
@@ -126,6 +148,20 @@ export function SparklineWithTooltip({
             strokeDasharray="2,2"
           />
         )}
+        {/* Dashed market-open marker. Mirrors the close marker below but on
+            the left edge — the PRE dot sits clearly to its left. */}
+        {showPre && (
+          <line
+            className="stroke-slate-300 dark:stroke-zinc-600"
+            x1={RTH_START_X}
+            y1={0}
+            x2={RTH_START_X}
+            y2={H}
+            strokeWidth="0.5"
+            strokeDasharray="2,2"
+            strokeOpacity={0.4}
+          />
+        )}
         {/* Dashed market-close marker. Drawn at RTH_END_X so the AH dot
             sits clearly to its right. Tailwind stroke classes apply to SVG
             via CSS so dark mode picks up zinc-600 automatically. */}
@@ -153,11 +189,12 @@ export function SparklineWithTooltip({
         style={{
           width: "6px",
           height: "6px",
-          left: 0,
           top: `${toY(points[0])}px`,
-          transform: "translateY(-50%)",
           background: "#7C3AED",
           filter: "drop-shadow(0 0 4px rgba(124, 58, 237, 0.7))",
+          ...(showPre
+            ? { left: `${RTH_START_X}%`, transform: "translate(-50%, -50%)" }
+            : { left: 0, transform: "translateY(-50%)" }),
         }}
       />
       <div
@@ -174,6 +211,28 @@ export function SparklineWithTooltip({
             : { right: 0, transform: "translateY(-50%)" }),
         }}
       />
+      {/* PRE indicator dot — mirror of the AH dot on the left edge. Same
+          sizing + green/red direction coding + native title tooltip. */}
+      {showPre && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            width: "5px",
+            height: "5px",
+            left: `${PRE_X}%`,
+            top: `${preDotY}px`,
+            transform: "translate(-50%, -50%)",
+            background: preDotColor,
+            filter: `drop-shadow(0 0 4px ${preDotGlow})`,
+          }}
+          title={
+            preMarketChangePct != null
+              ? `Pre-market ${preMarketChangePct >= 0 ? "+" : ""}${preMarketChangePct.toFixed(2)}%`
+              : "Pre-market"
+          }
+        />
+      )}
       {/* AH indicator dot — green/red glow by ahChangePct direction, a hair
           smaller (5px vs 6px) than the purple RTH endpoints so it reads as
           a different zone. Title attribute gives a native hover tooltip
