@@ -56,6 +56,23 @@ async function _fetchOnce(ticker, signal) {
   }
 }
 
+// Dedupe concurrent fetches for the same ticker. If one is already in flight,
+// callers (setInterval + useEffect + future triggers) piggyback on it —
+// subscribers receive the same _publish once it settles.
+function _triggerFetch(ticker) {
+  const entry = _registry.get(ticker);
+  if (!entry) return;
+  if (entry.inflight) return;
+  entry.inflight = (async () => {
+    try {
+      await _fetchOnce(ticker, entry.controller.signal);
+    } finally {
+      const live = _registry.get(ticker);
+      if (live) live.inflight = null;
+    }
+  })();
+}
+
 function _subscribe(ticker, setState) {
   let entry = _registry.get(ticker);
   if (!entry) {
@@ -65,13 +82,14 @@ function _subscribe(ticker, setState) {
       timer: null,
       controller: new AbortController(),
       refCount: 0,
+      inflight: null,
     };
     _registry.set(ticker, entry);
-    _fetchOnce(ticker, entry.controller.signal);
-    entry.timer = setInterval(
-      () => _fetchOnce(ticker, entry.controller.signal),
-      POLL_MS,
-    );
+    // Schedule ongoing 60s poll. The first fetch is kicked off from the
+    // useEffect below so every fresh mount always triggers one (even when
+    // joining an existing registry entry) — dedup ensures no duplicate
+    // HTTP requests.
+    entry.timer = setInterval(() => _triggerFetch(ticker), POLL_MS);
   }
   entry.subs.add(setState);
   entry.refCount += 1;
@@ -104,7 +122,13 @@ export function useAHPrice(ticker) {
       setState(_emptySnapshot());
       return undefined;
     }
-    return _subscribe(ticker, setState);
+    const unsubscribe = _subscribe(ticker, setState);
+    // Immediate fetch on every mount — not just the first subscriber —
+    // so the Sidebar chip appears within one round-trip rather than
+    // waiting up to 60 s for the next interval tick. Dedup in
+    // _triggerFetch collapses concurrent calls to a single HTTP request.
+    _triggerFetch(ticker);
+    return unsubscribe;
   }, [ticker]);
 
   return state;

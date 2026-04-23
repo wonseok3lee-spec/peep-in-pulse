@@ -630,6 +630,39 @@ export default function CompareTab({ tickers, onRemove }) {
 
 /* ------------------------------ Chart  ------------------------------ */
 
+// Endpoint dot + value label for the Compare chart. Mirrors the Sparkline's
+// layered-circle glow: halo (r=7, 22% opacity) + mid (r=4.5, 50%) + core
+// (r=3, solid). Rendered as an SVG group so it composes with Recharts'
+// natively-scaled SVG (no preserveAspectRatio stretching to worry about
+// here — that workaround was specific to the Sidebar sparkline's squashed
+// viewBox). Label color follows currentColor so it picks up the slate/zinc
+// text tones via Tailwind dark-mode classes.
+function EndpointDot({ cx, cy, color, label, side }) {
+  if (cx == null || cy == null) return null;
+  const labelX = side === "right" ? cx + 6 : cx - 6;
+  const anchor = side === "right" ? "start" : "end";
+  return (
+    <g pointerEvents="none" className="text-slate-700 dark:text-zinc-300">
+      <circle cx={cx} cy={cy} r={7} fill={color} opacity={0.22} />
+      <circle cx={cx} cy={cy} r={4.5} fill={color} opacity={0.5} />
+      <circle cx={cx} cy={cy} r={3} fill={color} />
+      {label && (
+        <text
+          x={labelX}
+          y={cy - 8}
+          textAnchor={anchor}
+          fontSize={11}
+          fontWeight={600}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fill="currentColor"
+        >
+          {label}
+        </text>
+      )}
+    </g>
+  );
+}
+
 function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCustomActive }) {
   // When a custom date range is active, periodKey is stale (still holds
   // the last-clicked button's value). Custom ranges always span full
@@ -711,6 +744,33 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
     __xkey: row.date.toISOString(),
   }));
 
+  // First and last indices with non-null data per ticker. Used by the dot
+  // callbacks on each Line so only the endpoints get a glowing marker +
+  // value label, not every plotted point. Recomputed only when shape
+  // changes — keeps render cheap on resize/tooltip-hover.
+  const endpointIndices = useMemo(() => {
+    const out = {};
+    for (const t of tickers) {
+      let first = null;
+      let last = null;
+      for (let i = 0; i < chartData.length; i++) {
+        const v = chartData[i][t];
+        if (v != null && !Number.isNaN(v)) {
+          if (first === null) first = i;
+          last = i;
+        }
+      }
+      out[t] = { first, last };
+    }
+    return out;
+  }, [tickers, chartData]);
+
+  const formatEndpointLabel = (v) => {
+    if (v == null || Number.isNaN(v)) return "";
+    if (viewMode === "price") return `$${v.toFixed(2)}`;
+    return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  };
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
@@ -781,19 +841,38 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
             />
           }
         />
-        {tickers.map((t, i) => (
-          <Line
-            key={t}
-            yAxisId="right"
-            type="monotone"
-            dataKey={t}
-            stroke={TICKER_COLORS[i % TICKER_COLORS.length]}
-            strokeWidth={2}
-            dot={false}
-            isAnimationActive={false}
-            connectNulls
-          />
-        ))}
+        {tickers.map((t, i) => {
+          const color = TICKER_COLORS[i % TICKER_COLORS.length];
+          const eps = endpointIndices[t] || {};
+          return (
+            <Line
+              key={t}
+              yAxisId="right"
+              type="monotone"
+              dataKey={t}
+              stroke={color}
+              strokeWidth={2}
+              dot={(props) => {
+                const { cx, cy, index, value } = props;
+                if (cx == null || cy == null || value == null) return null;
+                if (index !== eps.first && index !== eps.last) return null;
+                const isStart = index === eps.first;
+                return (
+                  <EndpointDot
+                    key={`endpoint-${t}-${index}`}
+                    cx={cx}
+                    cy={cy}
+                    color={color}
+                    label={formatEndpointLabel(value)}
+                    side={isStart ? "right" : "left"}
+                  />
+                );
+              }}
+              isAnimationActive={false}
+              connectNulls
+            />
+          );
+        })}
         {benchmark && benchmark.points?.length > 0 && (
           <Line
             yAxisId="right"
