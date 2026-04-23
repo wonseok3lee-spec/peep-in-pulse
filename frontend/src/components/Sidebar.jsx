@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { MinusIcon } from "./icons";
 import { usePrice } from "../hooks/usePrice";
+import { useAHPrice } from "../hooks/useAHPrice";
 import { useSparkline } from "../hooks/useSparkline";
 import { SparklineWithTooltip } from "./Sparkline";
 import { TICKER_COLORS, MAX_COMPARE } from "../lib/colors";
-import { formatPrice } from "../lib/formatters";
+import { formatPrice, isSameEtDay } from "../lib/formatters";
 
 function formatTicker(ticker) {
   const [symbol, suffix] = ticker.split(".");
@@ -174,12 +175,39 @@ function SidebarRow({
   onDragEnd,
 }) {
   const { price, changePct, currency, loading, error } = usePrice(ticker);
+  const ah = useAHPrice(ticker);
   const { points: sparkPoints, timestamps: sparkTimestamps } = useSparkline(
     ticker,
     sparkPeriod
   );
 
   const priceOk = price != null && !error;
+
+  // Same rule as TickerHeader: show during POST/PRE, and carry through
+  // CLOSED while the bar is still from today in ET. Space is tight here,
+  // so we render label + % only (no absolute price).
+  const showAh =
+    ah.supported &&
+    ah.ahChangePct != null &&
+    (ah.marketState === "POST" ||
+      (ah.marketState === "CLOSED" && isSameEtDay(ah.ahTimestamp)));
+  const showPre =
+    ah.supported &&
+    ah.preMarketChangePct != null &&
+    (ah.marketState === "PRE" ||
+      (ah.marketState === "CLOSED" && isSameEtDay(ah.preTimestamp)));
+  let ahChip = null;
+  if (showAh) {
+    ahChip = { label: "AH", pct: ah.ahChangePct };
+  } else if (showPre) {
+    ahChip = { label: "Pre", pct: ah.preMarketChangePct };
+  }
+  const ahColor =
+    ahChip == null
+      ? ""
+      : ahChip.pct >= 0
+      ? "text-emerald-600 dark:text-emerald-400"
+      : "text-red-500 dark:text-red-400";
 
   // 1D reuses the dashboard card's day-over-day % (from usePrice) so both
   // surfaces always agree on the headline number. 5D+ derives the period
@@ -289,6 +317,20 @@ function SidebarRow({
                 ? "—"
                 : `${periodReturn >= 0 ? "+" : ""}${periodReturn.toFixed(2)}%`}
             </div>
+            {ahChip && (
+              <div
+                className="font-mono text-[10px] leading-[1.1] text-slate-400 dark:text-zinc-500"
+                title={`${ahChip.label === "AH" ? "After-hours" : "Pre-market"} change vs regular close`}
+              >
+                <span className="mr-0.5 rounded-sm bg-slate-100 px-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">
+                  {ahChip.label}
+                </span>
+                <span className={ahColor}>
+                  {ahChip.pct >= 0 ? "+" : ""}
+                  {ahChip.pct.toFixed(2)}%
+                </span>
+              </div>
+            )}
           </div>
 
           {/* RIGHT: chart only — period is controlled by the sidebar header dropdown */}

@@ -71,6 +71,10 @@ _ALLOWED_SCREENERS = (
 _price_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _PRICE_TTL = 30
 
+# After-hours/pre-market payload cache, same TTL rationale as /proxy/price.
+_ah_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_AH_TTL = 30
+
 # Chart payloads (sparklines + CompareTab history). Keyed by
 # (ticker, interval, range, period1, period2). Intraday bars get a short
 # TTL so a fresh 5-min bar shows up in the watchlist sparkline within ~1-2
@@ -391,6 +395,126 @@ async def proxy_price(ticker: str):
     with _state_lock:
         _price_cache[ticker] = (now, data)
     return data
+
+
+def _extract_ah_payload(data: dict[str, Any], now_ts: float) -> dict[str, Any]:
+    """Parse a Yahoo 5m intraday chart response into the AH payload shape.
+
+    Returns {"supported": False} when the ticker lacks pre/post data or the
+    response is malformed. Otherwise returns marketState + regular price +
+    pre/post prices and their derived change %.
+    """
+    try:
+        result = data["chart"]["result"][0]
+        meta = result["meta"]
+    except (KeyError, IndexError, TypeError):
+        return {"supported": False}
+
+    if not meta.get("hasPrePostMarketData"):
+        return {"supported": False}
+
+    regular_price = meta.get("regularMarketPrice")
+    regular_time = meta.get("regularMarketTime")
+    period = meta.get("currentTradingPeriod") or {}
+    pre_window = period.get("pre") or {}
+    regular_window = period.get("regular") or {}
+    post_window = period.get("post") or {}
+
+    pre_start = pre_window.get("start")
+    regular_start = regular_window.get("start")
+    regular_end = regular_window.get("end")
+    post_end = post_window.get("end")
+
+    timestamps = result.get("timestamp") or []
+    quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+    closes = quote.get("close") or []
+    pre_price: float | None = None
+    post_price: float | None = None
+    pre_ts: int | None = None
+    post_ts: int | None = None
+    if timestamps and closes and len(timestamps) == len(closes):
+        for ts, close in zip(timestamps, closes):
+            if close is None:
+                continue
+            if (
+                pre_start is not None
+                and regular_start is not None
+                and pre_start <= ts < regular_start
+            ):
+                pre_price = float(close)
+                pre_ts = int(ts)
+            elif regular_end is not None and ts >= regular_end:
+                post_price = float(close)
+                post_ts = int(ts)
+
+    def _pct(quote_price: float | None) -> float | None:
+        if quote_price is None or regular_price is None or regular_price == 0:
+            return None
+        return ((quote_price - regular_price) / regular_price) * 100
+
+    if (
+        pre_start is not None
+        and regular_start is not None
+        and pre_start <= now_ts < regular_start
+    ):
+        market_state = "PRE"
+    elif (
+        regular_start is not None
+        and regular_end is not None
+        and regular_start <= now_ts < regular_end
+    ):
+        market_state = "REGULAR"
+    elif (
+        regular_end is not None
+        and post_end is not None
+        and regular_end <= now_ts < post_end
+    ):
+        market_state = "POST"
+    else:
+        market_state = "CLOSED"
+
+    return {
+        "supported": True,
+        "marketState": market_state,
+        "regularMarketPrice": regular_price,
+        "regularMarketTime": regular_time,
+        "ahPrice": post_price,
+        "ahChangePct": _pct(post_price),
+        "ahTimestamp": post_ts,
+        "preMarketPrice": pre_price,
+        "preMarketChangePct": _pct(pre_price),
+        "preTimestamp": pre_ts,
+        "asOf": int(now_ts),
+    }
+
+
+@app.get("/proxy/ah/{ticker}")
+async def proxy_ah(ticker: str) -> dict[str, Any]:
+    """Derive after-hours / pre-market price from Yahoo 5m intraday bars.
+
+    Yahoo's v8 chart endpoint does not expose postMarketPrice in meta, and
+    v7/finance/quote now requires crumb auth. We instead fetch intraday bars
+    for the current day with includePrePost=true and return the last valid
+    close inside the pre and post windows, plus the derived marketState.
+    Foreign tickers (HKEX, KOSPI, etc.) typically have hasPrePostMarketData=
+    false and return {"supported": false}; the frontend renders nothing for
+    those.
+    """
+    now = time.time()
+    cached = _ah_cache.get(ticker)
+    if cached and (now - cached[0]) < _AH_TTL:
+        return cached[1]
+
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    params = {"interval": "5m", "range": "1d", "includePrePost": "true"}
+    client = await get_http_client()
+    r = await client.get(url, params=params, timeout=10.0)
+    data = r.json()
+
+    payload = _extract_ah_payload(data, now)
+    with _state_lock:
+        _ah_cache[ticker] = (now, payload)
+    return payload
 
 
 @app.get("/proxy/chart/{ticker}")

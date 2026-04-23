@@ -1,5 +1,6 @@
-import { formatPrice } from "../lib/formatters";
+import { formatPrice, isSameEtDay } from "../lib/formatters";
 import { usePrice } from "../hooks/usePrice";
+import { useAHPrice } from "../hooks/useAHPrice";
 import { useFundamentals } from "../hooks/useFundamentals";
 
 const EXCHANGES = [
@@ -55,6 +56,7 @@ function StatItem({ label, value, tone = "neutral" }) {
 export default function TickerHeader({ ticker }) {
   const { price, changePct, currency, companyName, loading, error } =
     usePrice(ticker);
+  const ah = useAHPrice(ticker);
   const { data: fundData } = useFundamentals(ticker ? [ticker] : []);
   const f = fundData[ticker];
 
@@ -67,6 +69,38 @@ export default function TickerHeader({ ticker }) {
       : "text-loss";
   const changeSign = changePct == null ? "" : changePct >= 0 ? "+" : "";
   const exchangeBadge = getExchange(ticker);
+
+  // Show a third sub-line during POST/PRE, plus carry it through CLOSED so
+  // the AH price remains visible from session end (~8 PM ET) until next
+  // pre-market opens (~4 AM ET) — that 8-hour gap was exactly where the
+  // feature felt missing. The "same ET day" guard keeps Friday's AH from
+  // lingering into the weekend.
+  const showAh =
+    ah.supported &&
+    ah.ahPrice != null &&
+    (ah.marketState === "POST" ||
+      (ah.marketState === "CLOSED" && isSameEtDay(ah.ahTimestamp)));
+  const showPre =
+    ah.supported &&
+    ah.preMarketPrice != null &&
+    (ah.marketState === "PRE" ||
+      (ah.marketState === "CLOSED" && isSameEtDay(ah.preTimestamp)));
+  let extendedHours = null;
+  if (showAh) {
+    extendedHours = { label: "AH", price: ah.ahPrice, pct: ah.ahChangePct };
+  } else if (showPre) {
+    extendedHours = {
+      label: "Pre",
+      price: ah.preMarketPrice,
+      pct: ah.preMarketChangePct,
+    };
+  }
+  const ehColor =
+    extendedHours?.pct == null
+      ? "text-slate-400 dark:text-slate-500"
+      : extendedHours.pct >= 0
+      ? "text-gain"
+      : "text-loss";
 
   return (
     <div className="rounded-xl border border-slate-100 bg-white shadow-sm transition-colors dark:border-zinc-700/50 dark:bg-zinc-900">
@@ -153,6 +187,17 @@ export default function TickerHeader({ ticker }) {
               ? `${changeSign}${changePct.toFixed(2)}%`
               : ""}
           </div>
+          {extendedHours && (
+            <div className="mt-0.5 font-mono text-xs text-slate-500 dark:text-zinc-400">
+              {extendedHours.label}{" "}
+              {formatPrice(extendedHours.price, currency)}{" "}
+              <span className={ehColor}>
+                {extendedHours.pct == null
+                  ? ""
+                  : `${extendedHours.pct >= 0 ? "+" : ""}${extendedHours.pct.toFixed(2)}%`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>
