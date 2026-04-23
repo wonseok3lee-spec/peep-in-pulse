@@ -67,7 +67,12 @@ Rules:
 - medium = notable but likely already priced in
 - surprise = true if the NEWS CONTENT is unexpected, regardless of whether the event (earnings, Fed meeting, product launch) was on the calendar. What matters is: does this outcome deviate from what was already priced in?
 - surprise = true for: earnings beats or misses that move the stock, guidance surprises (up or down), M&A announcements, unexpected executive departures, regulatory actions, abrupt price moves with a named cause.
-- surprise = false for: pre-announced events with in-line results, routine analyst commentary with no new data, broad market commentary, items primarily about a different company, historical/retrospective summaries.
+- surprise = false for: pre-announced events with in-line results, routine analyst commentary with no new data, broad market commentary, items primarily about a different company, historical/retrospective summaries. Concrete examples of retrospective summaries (all surprise=false):
+  * "Oracle (ORCL) Is Up 11.1% After Expanding Agentic AI" — the price already moved days ago; the article explains why retrospectively, not breaking news.
+  * "Nvidia Has Surged 200% This Year Amid AI Boom" — YTD cumulative return, not a fresh catalyst.
+  * "Tesla stock surged 40% YTD, outperforming EV peers" — retrospective performance recap.
+  * Any headline matching "Is Up X%", "Has Surged X%", "This Year / YTD / Past Month" where the price move happened before the article existed.
+- When in doubt between "fresh move" and "retrospective recap", prefer surprise = false. A missed bolt costs less than bolt fatigue.
 - If the headline is primarily about a different company than the given ticker, set importance = "medium" AND surprise = false.
 
 === summary — MAX 15 WORDS ===
