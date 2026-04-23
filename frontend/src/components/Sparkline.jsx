@@ -63,16 +63,23 @@ export function SparklineWithTooltip({
   // line maps [0, N-1] → [RTH_START_X, RTH_END_X]. With neither gate
   // active, start/end collapse to 0/W and every coordinate below matches
   // the original full-width behavior exactly.
+  // Gate logic mirrors Sidebar.jsx's AH-chip gates so the sparkline and the
+  // chip never disagree: PRE renders only during the PRE window (or CLOSED
+  // if the bar is still today in ET), AH renders only during POST (same
+  // carry-through for CLOSED). Without this alignment the sparkline would
+  // keep PRE visible all day once pre-market printed.
   const showAh =
     period === "1D" &&
     ahPrice != null &&
     ahTimestamp != null &&
-    isSameEtDay(ahTimestamp);
+    (marketState === "POST" ||
+      (marketState === "CLOSED" && isSameEtDay(ahTimestamp)));
   const showPre =
     period === "1D" &&
     preMarketPrice != null &&
     preTimestamp != null &&
-    isSameEtDay(preTimestamp);
+    (marketState === "PRE" ||
+      (marketState === "CLOSED" && isSameEtDay(preTimestamp)));
   const RTH_START_X = showPre ? 15 : 0;
   const RTH_END_X = showAh ? 85 : W;
   const AH_X = 92;
