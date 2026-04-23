@@ -343,6 +343,10 @@ function SidebarRow({
                 positive={isPositive}
                 currentPrice={price}
                 height={32}
+                ahPrice={ah.ahPrice}
+                ahTimestamp={ah.ahTimestamp}
+                ahChangePct={ah.ahChangePct}
+                marketState={ah.marketState}
               />
             </div>
           </div>
