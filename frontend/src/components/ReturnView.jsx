@@ -735,14 +735,21 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   };
 
-  // Halo: 3 px card-bg-colored stroke under each label so stacked labels
-  // (after 14 px collision push) stay crisp against the plot gridlines and
-  // nearby Y-axis tick text. Tailwind's stroke-white/dark:stroke-zinc-900
-  // resolve to the CompareTab card bg (#fff / #18181b). `paintOrder` puts
-  // the stroke UNDER the fill so the colored text isn't muddied.
+  // Halo: card-bg-colored stroke under each label so stacked labels
+  // (after 14 px collision push) stay crisp against gridlines and so
+  // colored endpoint labels fully mask underlying grey Y-axis ticks at the
+  // same y. 6 px gives ~3 px ring on each side of every character — wide
+  // enough to spill past the label's bounding region and cover the
+  // trailing characters of a different-length tick string (e.g. tick
+  // "+311.7%" beneath label "+311.67%"). Tailwind's stroke-white /
+  // dark:stroke-zinc-900 resolve to the CompareTab card bg (#fff / #18181b).
+  // `paintOrder` puts the stroke UNDER the fill so the colored text
+  // isn't muddied. EndpointLabelsLayer is already the last child of
+  // <LineChart> (Recharts 3.x preserves JSX render order), so this layer
+  // paints on top of axes — the halo handles the residual mask coverage.
   const haloProps = {
     className: "stroke-white dark:stroke-zinc-900",
-    strokeWidth: 3,
+    strokeWidth: 6,
     paintOrder: "stroke fill",
   };
 
