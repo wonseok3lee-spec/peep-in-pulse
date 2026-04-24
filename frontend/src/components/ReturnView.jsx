@@ -600,6 +600,7 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
           tickers={tickers}
           tickerColors={TICKER_COLORS}
           viewMode={viewMode}
+          benchmark={benchmark}
         />
       </LineChart>
     </ResponsiveContainer>
@@ -624,7 +625,13 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
 // Recharts 3.x: this component renders directly as a child of <LineChart>;
 // `usePlotArea()` + `useYAxisScale("right")` read from the chart store.
 // The deprecated <Customized> shim no longer forwards chart context.
-function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
+function EndpointLabelsLayer({
+  chartData,
+  tickers,
+  tickerColors,
+  viewMode,
+  benchmark,
+}) {
   const plot = usePlotArea();
   const yScale = useYAxisScale("right");
   if (!plot || !yScale) return null;
@@ -663,12 +670,58 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
     raw.push({
       dataKey: t,
       color: tickerColors[i % tickerColors.length],
+      isBenchmark: false,
       firstValue,
       lastValue,
       firstY,
       lastY,
     });
   }
+
+  // Add the benchmark series (SPY/QQQ/DIA dashed line) to the same item
+  // list so its endpoint label participates in collision resolution and
+  // shows alongside the ticker labels. Coloring is handled at render time
+  // via a wrapping <g class="text-slate-400 dark:text-slate-300"> so the
+  // benchmark label visually echoes the dashed grey line.
+  if (benchmark && benchmark.points?.length > 0) {
+    let firstValue = null;
+    let lastValue = null;
+    for (let j = 0; j < chartData.length; j++) {
+      const v = chartData[j].__benchmark__;
+      if (v != null && !Number.isNaN(v)) {
+        firstValue = v;
+        break;
+      }
+    }
+    for (let j = chartData.length - 1; j >= 0; j--) {
+      const v = chartData[j].__benchmark__;
+      if (v != null && !Number.isNaN(v)) {
+        lastValue = v;
+        break;
+      }
+    }
+    if (firstValue != null && lastValue != null) {
+      const firstY = yScale(firstValue);
+      const lastY = yScale(lastValue);
+      if (
+        firstY != null &&
+        !Number.isNaN(firstY) &&
+        lastY != null &&
+        !Number.isNaN(lastY)
+      ) {
+        raw.push({
+          dataKey: "__benchmark__",
+          color: null, // null → render in slate-400/slate-300 grey
+          isBenchmark: true,
+          firstValue,
+          lastValue,
+          firstY,
+          lastY,
+        });
+      }
+    }
+  }
+
   if (raw.length === 0) return null;
 
   const MIN_GAP = 14;
@@ -694,6 +747,7 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
     raw.map((it) => ({
       dataKey: it.dataKey,
       color: it.color,
+      isBenchmark: it.isBenchmark,
       value: it.lastValue,
       y: it.lastY,
     }))
@@ -705,7 +759,8 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
   // === START labels (left edge) ===
   // If all first values are within 0.1 % of each other, collapse to one
   // shared neutral-colored label — avoids N identical "0.00%" labels
-  // stacking in pct mode on multi-day periods.
+  // stacking in pct mode on multi-day periods (where every series,
+  // benchmark included, normalizes to 0 % at period start).
   const firstValues = raw.map((it) => it.firstValue);
   const vmin = Math.min(...firstValues);
   const vmax = Math.max(...firstValues);
@@ -716,6 +771,8 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
         {
           dataKey: "__shared_start__",
           color: null, // null signals neutral text color
+          isBenchmark: false,
+          isShared: true,
           value: firstValues.reduce((s, v) => s + v, 0) / firstValues.length,
           y: raw.reduce((s, it) => s + it.firstY, 0) / raw.length,
         },
@@ -724,6 +781,8 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
         raw.map((it) => ({
           dataKey: it.dataKey,
           color: it.color,
+          isBenchmark: it.isBenchmark,
+          isShared: false,
           value: it.firstValue,
           y: it.firstY,
         }))
@@ -751,29 +810,39 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
     paintOrder: "stroke fill",
   };
 
+  // Per-item color resolution. When `color` is set, fill inline with that
+  // color (per-ticker case). Otherwise fill="currentColor" and a wrapping
+  // <g> sets the inherited color via Tailwind text-* classes — used for
+  // the benchmark label (slate-400 grey) and the all-equal shared start
+  // label (slate-700 grey, slightly darker for emphasis).
+  const groupClassFor = (it) => {
+    if (it.isShared) return "text-slate-700 dark:text-zinc-300";
+    if (it.isBenchmark) return "text-slate-400 dark:text-slate-300";
+    return undefined;
+  };
+
   return (
     <g pointerEvents="none">
-      {/* End labels — colored per ticker, anchored to the left (extends rightward) */}
+      {/* End labels — per-ticker colored, benchmark in slate grey */}
       {endItems.map((it) => (
-        <text
-          key={`end-${it.dataKey}`}
-          x={endLabelX}
-          y={it.y + 4}
-          textAnchor="start"
-          {...fontProps}
-          {...haloProps}
-          fill={it.color}
-        >
-          {formatLabel(it.value)}
-        </text>
-      ))}
-      {/* Start labels — anchored to the right (extends leftward). The
-          shared label (collapse case) uses currentColor so it inherits
-          the slate/zinc text color from the wrapping <g>. */}
-      <g className="text-slate-700 dark:text-zinc-300">
-        {startItems.map((it) => (
+        <g key={`end-${it.dataKey}`} className={groupClassFor(it)}>
           <text
-            key={`start-${it.dataKey}`}
+            x={endLabelX}
+            y={it.y + 4}
+            textAnchor="start"
+            {...fontProps}
+            {...haloProps}
+            fill={it.color ?? "currentColor"}
+          >
+            {formatLabel(it.value)}
+          </text>
+        </g>
+      ))}
+      {/* Start labels — same color logic + collapse-to-shared when every
+          series normalizes to 0 % at period start */}
+      {startItems.map((it) => (
+        <g key={`start-${it.dataKey}`} className={groupClassFor(it)}>
+          <text
             x={startLabelX}
             y={it.y + 4}
             textAnchor="end"
@@ -783,8 +852,8 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
           >
             {formatLabel(it.value)}
           </text>
-        ))}
-      </g>
+        </g>
+      ))}
     </g>
   );
 }
