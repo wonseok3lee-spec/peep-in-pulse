@@ -105,12 +105,12 @@ export default function CompareTab({ tickers, onRemove }) {
   );
 
   const chartData = useMemo(
-    () => buildChartData(usdTickers, history, viewMode, benchmark),
-    [usdTickers, history, viewMode, benchmark]
+    () => buildChartData(usdTickers, history, viewMode, benchmark, periodKey),
+    [usdTickers, history, viewMode, benchmark, periodKey]
   );
   const periodReturns = useMemo(
-    () => computePeriodReturns(usdTickers, history),
-    [usdTickers, history]
+    () => computePeriodReturns(usdTickers, history, periodKey),
+    [usdTickers, history, periodKey]
   );
   const lastTs = useMemo(() => {
     let max = 0;
@@ -1059,11 +1059,20 @@ function TickerChip({ ticker, color, onRemove, disabled = false }) {
 
 /* --------------------- helpers + empty/loading states --------------------- */
 
-function buildChartData(tickers, history, viewMode, benchmark) {
+function buildChartData(tickers, history, viewMode, benchmark, periodKey) {
+  // 1D uses yesterday's close as the % baseline so the chart line reflects
+  // the overnight gap (e.g., earnings-day line starts well above 0%). Other
+  // periods keep the conventional first-bar-of-series baseline.
+  const useYesterdayClose = periodKey === "1D";
   const firstCloses = {};
   for (const t of tickers) {
     const points = history[t]?.points ?? [];
-    firstCloses[t] = points.length ? points[0].close : null;
+    if (useYesterdayClose) {
+      const pc = history[t]?.previousClose;
+      firstCloses[t] = pc != null ? pc : (points.length ? points[0].close : null);
+    } else {
+      firstCloses[t] = points.length ? points[0].close : null;
+    }
   }
   const byTs = new Map();
   for (const t of tickers) {
@@ -1084,7 +1093,10 @@ function buildChartData(tickers, history, viewMode, benchmark) {
     }
   }
   if (benchmark?.points?.length) {
-    const benchFirst = benchmark.points[0].close;
+    const benchFirst =
+      useYesterdayClose && benchmark.previousClose != null
+        ? benchmark.previousClose
+        : benchmark.points[0].close;
     for (const p of benchmark.points) {
       const row = byTs.get(p.ts) ?? { ts: p.ts, date: p.date };
       row.__benchmark__ =
@@ -1117,7 +1129,7 @@ function buildChartData(tickers, history, viewMode, benchmark) {
   return rows;
 }
 
-function computePeriodReturns(tickers, history) {
+function computePeriodReturns(tickers, history, periodKey) {
   const out = {};
   for (const t of tickers) {
     const pts = history[t]?.points ?? [];
@@ -1125,7 +1137,25 @@ function computePeriodReturns(tickers, history) {
       out[t] = null;
       continue;
     }
-    const first = pts[0].close;
+    // 1D measures from yesterday's close so the number matches the Sidebar
+    // quote-board and includes any overnight earnings gap. Multi-day
+    // periods keep the first-bar-in-series baseline — that's the
+    // conventional "% return over this window" definition.
+    let first;
+    if (periodKey === "1D") {
+      const pc = history[t]?.previousClose;
+      if (pc != null) {
+        first = pc;
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[compare] 1D previousClose missing for ${t}; falling back to first intraday bar`
+        );
+        first = pts[0].close;
+      }
+    } else {
+      first = pts[0].close;
+    }
     const last = pts[pts.length - 1].close;
     out[t] = first ? ((last - first) / first) * 100 : null;
   }

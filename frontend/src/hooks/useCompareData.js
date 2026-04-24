@@ -99,6 +99,12 @@ async function fetchYahooHistory(ticker, params, signal) {
     points,
     companyName: meta.shortName ?? meta.longName ?? ticker,
     currency: meta.currency ?? null,
+    // Yahoo's `chartPreviousClose` on a 1d intraday request is yesterday's
+    // regular-session close — i.e., the correct baseline for a 1D % return
+    // that matches the Sidebar quote-board number. For non-1D requests this
+    // value is still populated but refers to the close-before-range-start,
+    // which is irrelevant and ignored by CompareTab.
+    previousClose: meta.chartPreviousClose ?? null,
   };
 }
 
