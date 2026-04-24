@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   CartesianGrid,
+  Customized,
   Line,
   LineChart,
   ReferenceLine,
@@ -173,7 +174,7 @@ export default function ReturnView({
                       }`}
                     >
                       <span className="font-semibold">{best.ticker}</span>{" "}
-                      {best.pct >= 0 ? "+" : ""}
+                      {best.pct > 0 ? "+" : ""}
                       {best.pct.toFixed(2)}%
                     </span>
                   </div>
@@ -189,7 +190,7 @@ export default function ReturnView({
                       }`}
                     >
                       <span className="font-semibold">{worst.ticker}</span>{" "}
-                      {worst.pct >= 0 ? "+" : ""}
+                      {worst.pct > 0 ? "+" : ""}
                       {worst.pct.toFixed(2)}%
                     </span>
                   </div>
@@ -271,7 +272,7 @@ export default function ReturnView({
                           <span className={`font-semibold ${pctColor}`}>
                             {pct == null
                               ? "--"
-                              : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}
+                              : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
                           </span>
                         )}
                         {viewMode === "pct" && benchmark && delta != null && (
@@ -280,7 +281,7 @@ export default function ReturnView({
                               Δ {benchmark.symbol}
                             </span>
                             <span className={`font-semibold ${deltaColor}`}>
-                              {delta >= 0 ? "+" : ""}
+                              {delta > 0 ? "+" : ""}
                               {delta.toFixed(1)}%
                             </span>
                           </span>
@@ -311,7 +312,7 @@ export default function ReturnView({
                         {bLast != null ? `$${bLast.toFixed(2)}` : "--"}
                       </span>
                       <span className={`font-semibold ${valueColor}`}>
-                        {`${bReturn >= 0 ? "+" : ""}${bReturn.toFixed(2)}%`}
+                        {`${bReturn > 0 ? "+" : ""}${bReturn.toFixed(2)}%`}
                       </span>
                     </div>
                   );
@@ -399,7 +400,7 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
   const formatY = (v) => {
     if (v == null || Number.isNaN(v)) return "";
     if (viewMode === "price") return `$${v.toFixed(0)}`;
-    const sign = v >= 0 ? "+" : "";
+    const sign = v > 0 ? "+" : "";
     return `${sign}${v.toFixed(1)}%`;
   };
 
@@ -467,14 +468,14 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
   const formatEndpointLabel = (v) => {
     if (v == null || Number.isNaN(v)) return "";
     if (viewMode === "price") return `$${v.toFixed(2)}`;
-    return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+    return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
   };
 
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
         data={data}
-        margin={{ top: 8, right: 48, bottom: 8, left: 0 }}
+        margin={{ top: 8, right: 120, bottom: 8, left: 0 }}
       >
         <CartesianGrid
           strokeDasharray="3 3"
@@ -556,13 +557,17 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
                 if (cx == null || cy == null || value == null) return null;
                 if (index !== eps.first && index !== eps.last) return null;
                 const isStart = index === eps.first;
+                // End-side labels render in the right-margin column via the
+                // <Customized> layer below so multiple tickers at similar
+                // y-values don't overlap. Start-side labels stay inline —
+                // they're at the left edge with less collision risk.
                 return (
                   <EndpointDot
                     key={`endpoint-${t}-${index}`}
                     cx={cx}
                     cy={cy}
                     color={color}
-                    label={formatEndpointLabel(value)}
+                    label={isStart ? formatEndpointLabel(value) : null}
                     side={isStart ? "right" : "left"}
                   />
                 );
@@ -586,8 +591,98 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
             connectNulls
           />
         )}
+        <Customized
+          component={
+            <EndpointLabelsLayer tickers={tickers} viewMode={viewMode} />
+          }
+        />
       </LineChart>
     </ResponsiveContainer>
+  );
+}
+
+// Customized layer: renders each ticker's end-value label in the reserved
+// right-margin column, OUTSIDE the plot area. Two reasons:
+//   1. Multiple tickers often end near the same y (e.g. +32% vs +25%) and
+//      their inline labels collide; this layer does a global pass with
+//      vertical collision resolution before rendering.
+//   2. Labels in the margin give each line a quiet, reliable readout even
+//      when the plot itself is visually busy.
+// Recharts passes `formattedGraphicalItems` (one entry per <Line>, with
+// computed screen-space `points`) and `offset` (plot rectangle) via the
+// <Customized component={...}/> API. Tickers + viewMode come in through
+// the element props we pass in ChartView.
+function EndpointLabelsLayer(props) {
+  const { formattedGraphicalItems, offset, tickers, viewMode } = props;
+  if (!formattedGraphicalItems || !offset) return null;
+
+  const formatLabel = (v) => {
+    if (v == null || Number.isNaN(v)) return "";
+    if (viewMode === "price") return `$${v.toFixed(2)}`;
+    return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+  };
+
+  // Collect last-valid-point per ticker Line. Skip the dashed benchmark.
+  const items = [];
+  for (const gi of formattedGraphicalItems) {
+    const dataKey = gi?.item?.props?.dataKey;
+    if (!dataKey || dataKey === "__benchmark__") continue;
+    if (tickers && !tickers.includes(dataKey)) continue;
+    const stroke = gi?.item?.props?.stroke;
+    const points = gi?.props?.points || [];
+    let last = null;
+    for (let i = points.length - 1; i >= 0; i--) {
+      const v = points[i].value;
+      if (v != null && !Number.isNaN(v)) {
+        last = points[i];
+        break;
+      }
+    }
+    if (last == null) continue;
+    items.push({ dataKey, color: stroke, y: last.y, value: last.value });
+  }
+  if (items.length === 0) return null;
+
+  // Collision resolution: sort top→bottom, greedy-push any label that
+  // sits within MIN_GAP of the previous one. If the bottom-most label
+  // overflows the plot area after resolution, shift all up by the excess
+  // (may reintroduce minor crowding at the top, acceptable for 4-5
+  // tickers which is the typical max).
+  items.sort((a, b) => a.y - b.y);
+  const MIN_GAP = 14;
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].y < items[i - 1].y + MIN_GAP) {
+      items[i].y = items[i - 1].y + MIN_GAP;
+    }
+  }
+  const plotBottom = offset.top + offset.height;
+  const overflow = items[items.length - 1].y - plotBottom;
+  if (overflow > 0) {
+    for (const it of items) it.y -= overflow;
+  }
+
+  // Right YAxis width is declared as 56 on its <YAxis> element. Labels
+  // render just past that, with +6px visual breathing room.
+  const RIGHT_YAXIS_WIDTH = 56;
+  const labelX = offset.left + offset.width + RIGHT_YAXIS_WIDTH + 6;
+
+  return (
+    <g pointerEvents="none">
+      {items.map((it) => (
+        <text
+          key={it.dataKey}
+          x={labelX}
+          y={it.y + 4}
+          textAnchor="start"
+          fontSize={11}
+          fontWeight={600}
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fill={it.color}
+        >
+          {formatLabel(it.value)}
+        </text>
+      ))}
+    </g>
   );
 }
 
@@ -633,7 +728,7 @@ function CustomTooltip({
   const formatValue = (v) =>
     viewMode === "price"
       ? `$${v.toFixed(2)}`
-      : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+      : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
   const benchEntry = payloadMap.__benchmark__;
 
