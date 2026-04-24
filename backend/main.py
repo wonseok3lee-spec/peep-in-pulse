@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import exchange_calendars as xcals
 import httpx
 import yfinance as yf
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -36,6 +37,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 ET_TZ = ZoneInfo("America/New_York")
+
+# NYSE session calendar — used to skip _refresh_pulse on market holidays.
+# Sun/Mon Asian-market triggers intentionally do not consult this; they're
+# scheduled for foreign-exchange coverage, not NYSE sessions. Loaded once at
+# module import (~600 ms cold-start cost, amortized over process lifetime).
+NYSE_CALENDAR = xcals.get_calendar("XNYS")
 
 # Shared snapshot guarded by a lock. Scheduler thread writes; request handlers read.
 _state_lock = threading.Lock()
@@ -231,9 +238,30 @@ def _build_snapshot(
     return snapshot
 
 
-def _refresh_pulse() -> None:
-    """One fetch → tag → store cycle. Runs on the scheduler's thread."""
+def _refresh_pulse(gate_on_nyse: bool = True) -> None:
+    """One fetch → tag → store cycle. Runs on the scheduler's thread.
+
+    When `gate_on_nyse` is True (weekday NYSE triggers), skips entirely on
+    NYSE holidays (Good Friday, MLK, Memorial Day, Thanksgiving, etc.) to
+    avoid burning OpenAI calls and compute on days with no US-market news.
+    Sun/Mon Asian-coverage triggers pass gate_on_nyse=False so they run
+    regardless — Asian exchanges follow their own calendars (e.g., HKEX
+    trades on MLK Day), and the Sunday evening fires are specifically
+    scheduled for that coverage while NYSE is closed.
+
+    TODO: early-close days (e.g., day after Thanksgiving, Christmas Eve)
+    fire post-close ticks. NYSE_CALENDAR.schedule(date).market_close gives
+    the actual close time — could gate aftermarket ticks on that. Deferred.
+    """
     global _last_result, _last_updated, _snapshot_building
+    if gate_on_nyse:
+        today_et = datetime.now(ET_TZ).date()
+        if not NYSE_CALENDAR.is_session(today_et):
+            logger.info(
+                "[scheduler] skipping refresh — %s is not an NYSE session",
+                today_et,
+            )
+            return
     logger.info(
         "_refresh_pulse triggered at ET: %s",
         datetime.now(ET_TZ).strftime("%Y-%m-%d %H:%M:%S %Z %A"),
@@ -277,46 +305,58 @@ async def lifespan(app: FastAPI):
     # content when it completes. Offloading to the default executor gives
     # the inner asyncio.run() (in fetch_all) a clean host thread instead
     # of clashing with the running lifespan loop.
-    asyncio.get_running_loop().run_in_executor(None, _refresh_pulse)
+    # Initial prime bypasses the NYSE-session gate (gate_on_nyse=False).
+    # Otherwise a fresh boot on a NYSE holiday would leave _snapshot_building
+    # stuck at True with no content, since every scheduled fire that day
+    # also skips. We'd rather rebuild the snapshot once on boot even if
+    # the net content is near-identical to what's on disk.
+    asyncio.get_running_loop().run_in_executor(None, _refresh_pulse, False)
 
     # Market-aware refresh schedule (America/New_York, DST-aware).
     # Each trigger below is one APScheduler job on _refresh_pulse; windows
-    # are non-overlapping so no minute fires twice.
+    # are non-overlapping so no minute fires twice. Tuple third element:
+    # `gate_on_nyse` — True for NYSE-session triggers (skipped on holidays),
+    # False for Asian-coverage triggers that run regardless of NYSE calendar.
     job_specs = [
         # Premarket early: Mon–Fri 04:00, 06:00 ET (every 2 hours; 08:00
         # belongs to the late bucket below)
         ("pulse_premarket_early", CronTrigger(
-            day_of_week="mon-fri", hour="4,6", minute=0, timezone=ET_TZ)),
+            day_of_week="mon-fri", hour="4,6", minute=0, timezone=ET_TZ), True),
         # Premarket late: Mon–Fri 08:00, 08:30 ET (every 30 min as open nears)
         ("pulse_premarket_late", CronTrigger(
-            day_of_week="mon-fri", hour=8, minute="0,30", timezone=ET_TZ)),
+            day_of_week="mon-fri", hour=8, minute="0,30", timezone=ET_TZ), True),
         # Premarket closer: Mon–Fri 09:00 ET (top of hour only; 09:30 belongs
         # to the regular-hours schedule below)
         ("pulse_premarket_nine", CronTrigger(
-            day_of_week="mon-fri", hour=9, minute=0, timezone=ET_TZ)),
+            day_of_week="mon-fri", hour=9, minute=0, timezone=ET_TZ), True),
         # Regular hours opener: Mon–Fri 09:30 and 09:45 ET
         ("pulse_rth_open", CronTrigger(
-            day_of_week="mon-fri", hour=9, minute="30,45", timezone=ET_TZ)),
+            day_of_week="mon-fri", hour=9, minute="30,45", timezone=ET_TZ), True),
         # Regular hours body: Mon–Fri 10:00–15:45 ET, every 15 min
         ("pulse_rth_body", CronTrigger(
-            day_of_week="mon-fri", hour="10-15", minute="0,15,30,45", timezone=ET_TZ)),
+            day_of_week="mon-fri", hour="10-15", minute="0,15,30,45", timezone=ET_TZ), True),
         # Aftermarket earnings window: Mon–Fri 16:00–16:45 ET, every 15 min
         # (pause begins at 17:00; no fire at the pause boundary)
         ("pulse_aftermarket", CronTrigger(
-            day_of_week="mon-fri", hour=16, minute="0,15,30,45", timezone=ET_TZ)),
-        # Sunday evening reopen: Sun 18:00, 20:00, 22:00 ET (every 2 hours)
+            day_of_week="mon-fri", hour=16, minute="0,15,30,45", timezone=ET_TZ), True),
+        # Sunday evening reopen: Sun 18:00, 20:00, 22:00 ET (every 2 hours).
+        # Not gated on NYSE — runs every Sunday regardless of whether Monday
+        # is a NYSE holiday, because this fire exists for Asian-market
+        # coverage while NYSE is closed.
         ("pulse_sun_evening", CronTrigger(
-            day_of_week="sun", hour="18,20,22", minute=0, timezone=ET_TZ)),
+            day_of_week="sun", hour="18,20,22", minute=0, timezone=ET_TZ), False),
         # Monday overnight tail: Mon 00:00, 02:00 ET (every 2 hours;
-        # 04:00 is covered by pulse_premarket_early)
+        # 04:00 is covered by pulse_premarket_early). Not gated on NYSE —
+        # Asian exchanges trade on most NYSE holidays (MLK, Presidents Day).
         ("pulse_mon_overnight", CronTrigger(
-            day_of_week="mon", hour="0,2", minute=0, timezone=ET_TZ)),
+            day_of_week="mon", hour="0,2", minute=0, timezone=ET_TZ), False),
     ]
-    for job_id, trigger in job_specs:
+    for job_id, trigger, gate_on_nyse in job_specs:
         _scheduler.add_job(
             _refresh_pulse,
             trigger=trigger,
             id=job_id,
+            args=[gate_on_nyse],
             max_instances=1,
             coalesce=True,
         )
