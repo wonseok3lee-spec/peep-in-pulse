@@ -696,7 +696,9 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
       y: it.lastY,
     }))
   );
-  const endLabelX = plot.x + plot.width + 6;
+  // 12 px gap clears the endpoint dot's r=7 faint halo (gap of 6 left the
+  // halo edge 1 px inside the label, reading as "on top of the dot").
+  const endLabelX = plot.x + plot.width + 12;
 
   // === START labels (left edge) ===
   // If all first values are within 0.1 % of each other, collapse to one
@@ -724,13 +726,24 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
           y: it.firstY,
         }))
       );
-  const startLabelX = plot.x - 6;
+  // Symmetric 12 px gap on the left — same reasoning as endLabelX.
+  const startLabelX = plot.x - 12;
 
   const fontProps = {
-    textAnchor: undefined, // set per group below
     fontSize: 11,
     fontWeight: 600,
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  };
+
+  // Halo: 3 px card-bg-colored stroke under each label so stacked labels
+  // (after 14 px collision push) stay crisp against the plot gridlines and
+  // nearby Y-axis tick text. Tailwind's stroke-white/dark:stroke-zinc-900
+  // resolve to the CompareTab card bg (#fff / #18181b). `paintOrder` puts
+  // the stroke UNDER the fill so the colored text isn't muddied.
+  const haloProps = {
+    className: "stroke-white dark:stroke-zinc-900",
+    strokeWidth: 3,
+    paintOrder: "stroke fill",
   };
 
   return (
@@ -743,6 +756,7 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
           y={it.y + 4}
           textAnchor="start"
           {...fontProps}
+          {...haloProps}
           fill={it.color}
         >
           {formatLabel(it.value)}
@@ -759,6 +773,7 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
             y={it.y + 4}
             textAnchor="end"
             {...fontProps}
+            {...haloProps}
             fill={it.color ?? "currentColor"}
           >
             {formatLabel(it.value)}
