@@ -470,7 +470,7 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
         data={data}
-        margin={{ top: 8, right: 120, bottom: 8, left: 0 }}
+        margin={{ top: 8, right: 80, bottom: 8, left: 0 }}
       >
         <CartesianGrid
           strokeDasharray="3 3"
@@ -487,16 +487,18 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
           tickFormatter={formatX}
           minTickGap={28}
         />
+        {/* Right Y-axis renders no visible ticks or axis line: per-ticker
+            endpoint labels (rendered by EndpointLabelsLayer below) carry
+            the per-line value information. We keep the YAxis component
+            so its scale is registered with the chart store and
+            useYAxisScale("right") inside EndpointLabelsLayer resolves. */}
         <YAxis
           yAxisId="right"
           orientation="right"
-          stroke="#94a3b8"
-          fontSize={11}
-          tickLine={false}
-          axisLine={{ stroke: "#e2e8f0" }}
-          tickFormatter={formatY}
           domain={yDomain}
-          width={56}
+          tick={false}
+          axisLine={false}
+          width={0}
         />
         <YAxis
           yAxisId="left"
@@ -735,21 +737,17 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
   };
 
-  // Halo: card-bg-colored stroke under each label so stacked labels
-  // (after 14 px collision push) stay crisp against gridlines and so
-  // colored endpoint labels fully mask underlying grey Y-axis ticks at the
-  // same y. 6 px gives ~3 px ring on each side of every character — wide
-  // enough to spill past the label's bounding region and cover the
-  // trailing characters of a different-length tick string (e.g. tick
-  // "+311.7%" beneath label "+311.67%"). Tailwind's stroke-white /
+  // Halo: card-bg-colored 3 px stroke under each label so stacked labels
+  // (after 14 px collision push) stay crisp against the chart gridlines.
+  // 3 px is the minimal effective rim — bigger felt outlined-comic-book.
+  // The right Y-axis is hidden (no tick text to mask), so we don't need
+  // the wider halo previously used. Tailwind's stroke-white /
   // dark:stroke-zinc-900 resolve to the CompareTab card bg (#fff / #18181b).
   // `paintOrder` puts the stroke UNDER the fill so the colored text
-  // isn't muddied. EndpointLabelsLayer is already the last child of
-  // <LineChart> (Recharts 3.x preserves JSX render order), so this layer
-  // paints on top of axes — the halo handles the residual mask coverage.
+  // isn't muddied.
   const haloProps = {
     className: "stroke-white dark:stroke-zinc-900",
-    strokeWidth: 6,
+    strokeWidth: 3,
     paintOrder: "stroke fill",
   };
 
