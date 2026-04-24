@@ -604,19 +604,24 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
   );
 }
 
-// Renders each ticker's end-value label in the reserved right-margin
-// column, OUTSIDE the plot area. Two reasons:
-//   1. Multiple tickers often end near the same y (e.g. +32% vs +25%) and
-//      their inline labels collide; this layer does a global pass with
-//      vertical collision resolution before rendering.
-//   2. Labels in the margin give each line a quiet, reliable readout even
-//      when the plot itself is visually busy.
+// Renders per-ticker value labels at each line's start (left edge) and
+// end (right edge) terminus, sitting just outside the plot area so they
+// read alongside the colored endpoint dots.
 //
-// Recharts 3.x implementation: we read plot geometry from `usePlotArea()`
-// and the y→pixel scale from `useYAxisScale("right")`. The old 2.x pattern
-// of passing a function through `<Customized>` no longer forwards chart
-// context to the cloned element (see Customized.js deprecation comment),
-// so that path silently rendered nothing.
+// Collision resolution: a global pass sorts labels by y-position and
+// greedy-pushes any pair within 14 px vertically — prevents stacks when
+// two tickers end at similar values.
+//
+// Start-side collapse: in pct mode, every ticker normalizes to 0 % at
+// period start (1Y/5Y/YTD/etc), so N tickers would produce N stacked
+// "0.00%" labels. When all first values agree within 0.1 %, we render a
+// single neutral-colored shared label instead. For 1D (previousClose
+// baseline, per-ticker different starts), per-ticker start labels render
+// with the same collision logic as the end side.
+//
+// Recharts 3.x: this component renders directly as a child of <LineChart>;
+// `usePlotArea()` + `useYAxisScale("right")` read from the chart store.
+// The deprecated <Customized> shim no longer forwards chart context.
 function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
   const plot = usePlotArea();
   const yScale = useYAxisScale("right");
@@ -628,12 +633,19 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
     return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
   };
 
-  // Find each ticker's last non-null value directly in chartData, then
-  // translate to pixel y via the chart's y-axis scale.
-  const items = [];
+  // Collect first + last non-null values per ticker in a single pass.
+  const raw = [];
   for (let i = 0; i < tickers.length; i++) {
     const t = tickers[i];
+    let firstValue = null;
     let lastValue = null;
+    for (let j = 0; j < chartData.length; j++) {
+      const v = chartData[j][t];
+      if (v != null && !Number.isNaN(v)) {
+        firstValue = v;
+        break;
+      }
+    }
     for (let j = chartData.length - 1; j >= 0; j--) {
       const v = chartData[j][t];
       if (v != null && !Number.isNaN(v)) {
@@ -641,57 +653,118 @@ function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
         break;
       }
     }
-    if (lastValue == null) continue;
-    const y = yScale(lastValue);
-    if (y == null || Number.isNaN(y)) continue;
-    items.push({
+    if (firstValue == null || lastValue == null) continue;
+    const firstY = yScale(firstValue);
+    const lastY = yScale(lastValue);
+    if (firstY == null || Number.isNaN(firstY)) continue;
+    if (lastY == null || Number.isNaN(lastY)) continue;
+    raw.push({
       dataKey: t,
       color: tickerColors[i % tickerColors.length],
-      value: lastValue,
-      y,
+      firstValue,
+      lastValue,
+      firstY,
+      lastY,
     });
   }
-  if (items.length === 0) return null;
+  if (raw.length === 0) return null;
 
-  // Collision resolution: sort top→bottom, greedy-push any label that
-  // sits within MIN_GAP of the previous one. If the bottom-most label
-  // overflows the plot area after resolution, shift all up by the excess
-  // (may reintroduce minor crowding at the top, acceptable for 4-5
-  // tickers which is the typical max).
-  items.sort((a, b) => a.y - b.y);
   const MIN_GAP = 14;
-  for (let i = 1; i < items.length; i++) {
-    if (items[i].y < items[i - 1].y + MIN_GAP) {
-      items[i].y = items[i - 1].y + MIN_GAP;
-    }
-  }
   const plotBottom = plot.y + plot.height;
-  const overflow = items[items.length - 1].y - plotBottom;
-  if (overflow > 0) {
-    for (const it of items) it.y -= overflow;
-  }
 
-  // Right YAxis width is declared as 56 on its <YAxis> element. Labels
-  // render just past that, with +6px visual breathing room.
-  const RIGHT_YAXIS_WIDTH = 56;
-  const labelX = plot.x + plot.width + RIGHT_YAXIS_WIDTH + 6;
+  // Runs the greedy top→bottom push then clamps against the plot bottom.
+  const resolveCollisions = (rows) => {
+    rows.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].y < rows[i - 1].y + MIN_GAP) {
+        rows[i].y = rows[i - 1].y + MIN_GAP;
+      }
+    }
+    const overflow = rows[rows.length - 1].y - plotBottom;
+    if (overflow > 0) {
+      for (const r of rows) r.y -= overflow;
+    }
+    return rows;
+  };
+
+  // === END labels (right edge) ===
+  const endItems = resolveCollisions(
+    raw.map((it) => ({
+      dataKey: it.dataKey,
+      color: it.color,
+      value: it.lastValue,
+      y: it.lastY,
+    }))
+  );
+  const endLabelX = plot.x + plot.width + 6;
+
+  // === START labels (left edge) ===
+  // If all first values are within 0.1 % of each other, collapse to one
+  // shared neutral-colored label — avoids N identical "0.00%" labels
+  // stacking in pct mode on multi-day periods.
+  const firstValues = raw.map((it) => it.firstValue);
+  const vmin = Math.min(...firstValues);
+  const vmax = Math.max(...firstValues);
+  const allStartsEqual = raw.length > 1 && vmax - vmin <= 0.1;
+
+  const startItems = allStartsEqual
+    ? [
+        {
+          dataKey: "__shared_start__",
+          color: null, // null signals neutral text color
+          value: firstValues.reduce((s, v) => s + v, 0) / firstValues.length,
+          y: raw.reduce((s, it) => s + it.firstY, 0) / raw.length,
+        },
+      ]
+    : resolveCollisions(
+        raw.map((it) => ({
+          dataKey: it.dataKey,
+          color: it.color,
+          value: it.firstValue,
+          y: it.firstY,
+        }))
+      );
+  const startLabelX = plot.x - 6;
+
+  const fontProps = {
+    textAnchor: undefined, // set per group below
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+  };
 
   return (
     <g pointerEvents="none">
-      {items.map((it) => (
+      {/* End labels — colored per ticker, anchored to the left (extends rightward) */}
+      {endItems.map((it) => (
         <text
-          key={it.dataKey}
-          x={labelX}
+          key={`end-${it.dataKey}`}
+          x={endLabelX}
           y={it.y + 4}
           textAnchor="start"
-          fontSize={11}
-          fontWeight={600}
-          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          {...fontProps}
           fill={it.color}
         >
           {formatLabel(it.value)}
         </text>
       ))}
+      {/* Start labels — anchored to the right (extends leftward). The
+          shared label (collapse case) uses currentColor so it inherits
+          the slate/zinc text color from the wrapping <g>. */}
+      <g className="text-slate-700 dark:text-zinc-300">
+        {startItems.map((it) => (
+          <text
+            key={`start-${it.dataKey}`}
+            x={startLabelX}
+            y={it.y + 4}
+            textAnchor="end"
+            {...fontProps}
+            fill={it.color ?? "currentColor"}
+          >
+            {formatLabel(it.value)}
+          </text>
+        ))}
+      </g>
     </g>
   );
 }
