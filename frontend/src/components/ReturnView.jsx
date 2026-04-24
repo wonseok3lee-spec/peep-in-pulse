@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import {
   CartesianGrid,
-  Customized,
   Line,
   LineChart,
   ReferenceLine,
@@ -9,6 +8,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  usePlotArea,
+  useYAxisScale,
 } from "recharts";
 import { useCompareData } from "../hooks/useCompareData";
 import { MAX_COMPARE, TICKER_COLORS } from "../lib/colors";
@@ -465,12 +466,6 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
     return out;
   }, [tickers, chartData]);
 
-  const formatEndpointLabel = (v) => {
-    if (v == null || Number.isNaN(v)) return "";
-    if (viewMode === "price") return `$${v.toFixed(2)}`;
-    return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
-  };
-
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart
@@ -557,17 +552,20 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
                 if (cx == null || cy == null || value == null) return null;
                 if (index !== eps.first && index !== eps.last) return null;
                 const isStart = index === eps.first;
-                // End-side labels render in the right-margin column via the
-                // <Customized> layer below so multiple tickers at similar
-                // y-values don't overlap. Start-side labels stay inline —
-                // they're at the left edge with less collision risk.
+                // Dot-only at both ends. End labels render in the right-
+                // margin column via EndpointLabelsLayer below. Start
+                // labels are suppressed entirely: in pct mode every
+                // ticker normalizes to 0% at period start, so N tickers
+                // produced N stacked "0.00%" labels at the same point;
+                // on 1D where start values differ, the line's starting y
+                // already communicates that visually.
                 return (
                   <EndpointDot
                     key={`endpoint-${t}-${index}`}
                     cx={cx}
                     cy={cy}
                     color={color}
-                    label={isStart ? formatEndpointLabel(value) : null}
+                    label={null}
                     side={isStart ? "right" : "left"}
                   />
                 );
@@ -591,30 +589,38 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
             connectNulls
           />
         )}
-        <Customized
-          component={
-            <EndpointLabelsLayer tickers={tickers} viewMode={viewMode} />
-          }
+        {/* Per Recharts 3.x, custom layers are rendered directly as
+            children — the deprecated <Customized> shim no longer forwards
+            chart-context props to its component. EndpointLabelsLayer uses
+            Recharts 3.x hooks (usePlotArea, useYAxisScale) internally. */}
+        <EndpointLabelsLayer
+          chartData={chartData}
+          tickers={tickers}
+          tickerColors={TICKER_COLORS}
+          viewMode={viewMode}
         />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
-// Customized layer: renders each ticker's end-value label in the reserved
-// right-margin column, OUTSIDE the plot area. Two reasons:
+// Renders each ticker's end-value label in the reserved right-margin
+// column, OUTSIDE the plot area. Two reasons:
 //   1. Multiple tickers often end near the same y (e.g. +32% vs +25%) and
 //      their inline labels collide; this layer does a global pass with
 //      vertical collision resolution before rendering.
 //   2. Labels in the margin give each line a quiet, reliable readout even
 //      when the plot itself is visually busy.
-// Recharts passes `formattedGraphicalItems` (one entry per <Line>, with
-// computed screen-space `points`) and `offset` (plot rectangle) via the
-// <Customized component={...}/> API. Tickers + viewMode come in through
-// the element props we pass in ChartView.
-function EndpointLabelsLayer(props) {
-  const { formattedGraphicalItems, offset, tickers, viewMode } = props;
-  if (!formattedGraphicalItems || !offset) return null;
+//
+// Recharts 3.x implementation: we read plot geometry from `usePlotArea()`
+// and the y→pixel scale from `useYAxisScale("right")`. The old 2.x pattern
+// of passing a function through `<Customized>` no longer forwards chart
+// context to the cloned element (see Customized.js deprecation comment),
+// so that path silently rendered nothing.
+function EndpointLabelsLayer({ chartData, tickers, tickerColors, viewMode }) {
+  const plot = usePlotArea();
+  const yScale = useYAxisScale("right");
+  if (!plot || !yScale) return null;
 
   const formatLabel = (v) => {
     if (v == null || Number.isNaN(v)) return "";
@@ -622,24 +628,28 @@ function EndpointLabelsLayer(props) {
     return `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
   };
 
-  // Collect last-valid-point per ticker Line. Skip the dashed benchmark.
+  // Find each ticker's last non-null value directly in chartData, then
+  // translate to pixel y via the chart's y-axis scale.
   const items = [];
-  for (const gi of formattedGraphicalItems) {
-    const dataKey = gi?.item?.props?.dataKey;
-    if (!dataKey || dataKey === "__benchmark__") continue;
-    if (tickers && !tickers.includes(dataKey)) continue;
-    const stroke = gi?.item?.props?.stroke;
-    const points = gi?.props?.points || [];
-    let last = null;
-    for (let i = points.length - 1; i >= 0; i--) {
-      const v = points[i].value;
+  for (let i = 0; i < tickers.length; i++) {
+    const t = tickers[i];
+    let lastValue = null;
+    for (let j = chartData.length - 1; j >= 0; j--) {
+      const v = chartData[j][t];
       if (v != null && !Number.isNaN(v)) {
-        last = points[i];
+        lastValue = v;
         break;
       }
     }
-    if (last == null) continue;
-    items.push({ dataKey, color: stroke, y: last.y, value: last.value });
+    if (lastValue == null) continue;
+    const y = yScale(lastValue);
+    if (y == null || Number.isNaN(y)) continue;
+    items.push({
+      dataKey: t,
+      color: tickerColors[i % tickerColors.length],
+      value: lastValue,
+      y,
+    });
   }
   if (items.length === 0) return null;
 
@@ -655,7 +665,7 @@ function EndpointLabelsLayer(props) {
       items[i].y = items[i - 1].y + MIN_GAP;
     }
   }
-  const plotBottom = offset.top + offset.height;
+  const plotBottom = plot.y + plot.height;
   const overflow = items[items.length - 1].y - plotBottom;
   if (overflow > 0) {
     for (const it of items) it.y -= overflow;
@@ -664,7 +674,7 @@ function EndpointLabelsLayer(props) {
   // Right YAxis width is declared as 56 on its <YAxis> element. Labels
   // render just past that, with +6px visual breathing room.
   const RIGHT_YAXIS_WIDTH = 56;
-  const labelX = offset.left + offset.width + RIGHT_YAXIS_WIDTH + 6;
+  const labelX = plot.x + plot.width + RIGHT_YAXIS_WIDTH + 6;
 
   return (
     <g pointerEvents="none">
