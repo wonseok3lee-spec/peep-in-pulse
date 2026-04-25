@@ -366,12 +366,14 @@ function EndpointDot({ cx, cy, color, label, side }) {
 
 function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCustomActive }) {
   // When a custom date range is active, periodKey is stale (still holds
-  // the last-clicked button's value). Custom ranges always span full
-  // dates, never intraday, so force isIntraday off in that case.
+  // the last-clicked button's value). The chart treats custom ranges as
+  // always-daily — no intraday formatting. Tooltip semantics still
+  // distinguish 1D vs 5D (intraday vs daily) — see CustomTooltip.
   const isIntraday =
     !isCustomActive && (periodKey === "1D" || periodKey === "5D");
-  // For custom ranges, pick month/year formatting only when the span is
-  // wider than ~2 years; shorter custom ranges use month/day like 1Y/6M.
+  // For custom ranges, pick month/year formatting when the span is
+  // wider than ~2 years; shorter custom ranges use month/day. Used by the
+  // tooltip for date readability.
   const useMonthYear = (() => {
     if (isCustomActive && chartData.length >= 2) {
       const first = chartData[0].date;
@@ -383,19 +385,36 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
     return periodKey === "5Y" || periodKey === "Max";
   })();
 
+  // Period-aware X-axis tick formatter. The choice of granularity matches
+  // what users expect to see at each zoom level — time-of-day is too noisy
+  // for anything wider than 1D, full dates are wasted on multi-year charts.
   const formatX = (iso) => {
     if (!iso) return "";
     const d = new Date(iso);
-    if (isIntraday) {
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (isCustomActive) {
+      return useMonthYear
+        ? d.toLocaleDateString(undefined, { month: "short", year: "2-digit" })
+        : `${d.getMonth() + 1}/${d.getDate()}`;
     }
-    if (useMonthYear) {
-      return d.toLocaleDateString(undefined, {
-        month: "short",
-        year: "2-digit",
-      });
+    switch (periodKey) {
+      case "1D":
+        return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      case "5D":
+      case "1M":
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+      case "6M":
+      case "YTD":
+      case "1Y":
+        return d.toLocaleDateString(undefined, {
+          month: "short",
+          year: "2-digit",
+        });
+      case "5Y":
+      case "Max":
+        return String(d.getFullYear());
+      default:
+        return `${d.getMonth() + 1}/${d.getDate()}`;
     }
-    return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
   const formatY = (v) => {
@@ -445,6 +464,27 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
     __xkey: row.date.toISOString(),
   }));
 
+  // For 5D, force one tick per trading day instead of letting Recharts pick
+  // arbitrary 5-minute bars. Without this, evenly-spaced index ticks land
+  // on whatever times happen to fall there (e.g. "12:30 PM, 02:30 PM,
+  // 09:45 AM"), which is meaningless on a multi-day view. We collect the
+  // first __xkey seen per (year, month, day) tuple — the dashed vertical
+  // gridlines already mark day boundaries, so labeling those same
+  // boundaries with M/D matches the visual semantic.
+  let xTicks;
+  if (periodKey === "5D" && !isCustomActive) {
+    const seen = new Set();
+    xTicks = [];
+    for (const row of data) {
+      if (!row.date) continue;
+      const dayKey = `${row.date.getFullYear()}-${row.date.getMonth()}-${row.date.getDate()}`;
+      if (!seen.has(dayKey)) {
+        seen.add(dayKey);
+        xTicks.push(row.__xkey);
+      }
+    }
+  }
+
   // First and last indices with non-null data per ticker. Used by the dot
   // callbacks on each Line so only the endpoints get a glowing marker +
   // value label, not every plotted point. Recomputed only when shape
@@ -486,6 +526,7 @@ function ChartView({ chartData, tickers, periodKey, viewMode, benchmark, isCusto
           axisLine={{ stroke: "#e2e8f0" }}
           tickFormatter={formatX}
           minTickGap={28}
+          ticks={xTicks}
         />
         {/* Right Y-axis renders no visible ticks or axis line: per-ticker
             endpoint labels (rendered by EndpointLabelsLayer below) carry
