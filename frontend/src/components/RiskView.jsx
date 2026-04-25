@@ -83,7 +83,7 @@ function classifyPoint(beta, ret) {
   };
 }
 
-export function RiskView({ tickers, periodKey }) {
+export function RiskView({ tickers, periodKey, compact = false }) {
   const { data: fundamentals, loading: fLoading } = useFundamentals(tickers);
   const { data: history, loading: hLoading } = useCompareData(
     tickers,
@@ -133,7 +133,11 @@ export function RiskView({ tickers, periodKey }) {
 
   if (loading) {
     return (
-      <div className="flex h-[420px] items-center justify-center">
+      <div
+        className={`flex ${
+          compact ? "h-[340px]" : "h-[420px]"
+        } items-center justify-center`}
+      >
         <span className="text-sm italic text-slate-400">
           Loading risk data…
         </span>
@@ -143,7 +147,11 @@ export function RiskView({ tickers, periodKey }) {
 
   if (points.length === 0) {
     return (
-      <div className="flex h-[420px] items-center justify-center">
+      <div
+        className={`flex ${
+          compact ? "h-[340px]" : "h-[420px]"
+        } items-center justify-center`}
+      >
         <span className="text-sm italic text-slate-400">
           No risk data available for selected tickers
         </span>
@@ -192,50 +200,52 @@ export function RiskView({ tickers, periodKey }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/30">
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-          How to read
-        </span>
-        <span className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-emerald-200 dark:bg-emerald-900/50" />
-            <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-              Sweet spot
+      {!compact && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/30">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            How to read
+          </span>
+          <span className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-emerald-200 dark:bg-emerald-900/50" />
+              <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                Sweet spot
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                low risk, positive return
+              </span>
             </span>
-            <span className="text-slate-500 dark:text-slate-400">
-              low risk, positive return
+            <span className="text-slate-300 dark:text-zinc-600">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-violet-200 dark:bg-violet-900/50" />
+              <span className="font-semibold text-violet-700 dark:text-violet-400">
+                High risk, high reward
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                volatile, profitable
+              </span>
+            </span>
+            <span className="text-slate-300 dark:text-zinc-600">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-slate-200 dark:bg-zinc-700" />
+              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                Safe loss
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                stable but losing
+              </span>
+            </span>
+            <span className="text-slate-300 dark:text-zinc-600">·</span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-red-200 dark:bg-red-900/50" />
+              <span className="font-semibold text-red-700 dark:text-red-400">
+                High risk, low reward
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">avoid</span>
             </span>
           </span>
-          <span className="text-slate-300 dark:text-zinc-600">·</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-violet-200 dark:bg-violet-900/50" />
-            <span className="font-semibold text-violet-700 dark:text-violet-400">
-              High risk, high reward
-            </span>
-            <span className="text-slate-500 dark:text-slate-400">
-              volatile, profitable
-            </span>
-          </span>
-          <span className="text-slate-300 dark:text-zinc-600">·</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-slate-200 dark:bg-zinc-700" />
-            <span className="font-semibold text-slate-600 dark:text-slate-300">
-              Safe loss
-            </span>
-            <span className="text-slate-500 dark:text-slate-400">
-              stable but losing
-            </span>
-          </span>
-          <span className="text-slate-300 dark:text-zinc-600">·</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm bg-red-200 dark:bg-red-900/50" />
-            <span className="font-semibold text-red-700 dark:text-red-400">
-              High risk, low reward
-            </span>
-            <span className="text-slate-500 dark:text-slate-400">avoid</span>
-          </span>
-        </span>
-      </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -246,8 +256,15 @@ export function RiskView({ tickers, periodKey }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-[1fr_170px_320px] gap-4">
-        <div className="min-w-0 caret-transparent outline-none" style={{ height: 460 }}>
+      {/* Compact mode (Relations 2x2 grid cell) drops both side columns
+          (β·Return list + Fundamentals) and shrinks the scatter — keeps
+          the cell within a 2x2 grid budget while preserving the 4-quadrant
+          context that makes the view readable. */}
+      <div className={compact ? "" : "grid grid-cols-[1fr_170px_320px] gap-4"}>
+        <div
+          className="min-w-0 caret-transparent outline-none"
+          style={{ height: compact ? 340 : 460 }}
+        >
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 20, right: 15, bottom: 40, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -409,58 +426,62 @@ export function RiskView({ tickers, periodKey }) {
         </ResponsiveContainer>
         </div>
 
-        {/* MIDDLE: β · Return reference list */}
-        <div className="min-w-0 border-l border-slate-100 pl-3 dark:border-zinc-700/50">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            β · Return
-          </p>
-          <div className="flex flex-col gap-1.5">
-            {points.map((p) => (
-              <div
-                key={p.ticker}
-                className="flex items-center gap-1.5 rounded-md border border-slate-100 bg-slate-50 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800/50"
-              >
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ background: p.color }}
-                />
-                <span className="font-mono text-[11px] font-semibold text-slate-900 dark:text-slate-100">
-                  {p.ticker}
-                </span>
-                <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px]">
-                  <span className="text-slate-500 dark:text-slate-400">
-                    β{p.beta.toFixed(2)}
-                  </span>
+        {/* MIDDLE: β · Return reference list — hidden in compact mode */}
+        {!compact && (
+          <div className="min-w-0 border-l border-slate-100 pl-3 dark:border-zinc-700/50">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              β · Return
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {points.map((p) => (
+                <div
+                  key={p.ticker}
+                  className="flex items-center gap-1.5 rounded-md border border-slate-100 bg-slate-50 px-2 py-1 dark:border-zinc-700/50 dark:bg-zinc-800/50"
+                >
                   <span
-                    className={
-                      p.periodReturn >= 0
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-red-500 dark:text-red-400"
-                    }
-                  >
-                    {formatReturn(p.periodReturn)}
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: p.color }}
+                  />
+                  <span className="font-mono text-[11px] font-semibold text-slate-900 dark:text-slate-100">
+                    {p.ticker}
                   </span>
-                </span>
-              </div>
-            ))}
+                  <span className="ml-auto flex items-center gap-1.5 font-mono text-[10px]">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      β{p.beta.toFixed(2)}
+                    </span>
+                    <span
+                      className={
+                        p.periodReturn >= 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-red-500 dark:text-red-400"
+                      }
+                    >
+                      {formatReturn(p.periodReturn)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* RIGHT: Combined Signals column */}
-        <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            💡 Fundamentals{" "}
-            <span className="normal-case text-slate-400 dark:text-slate-500">
-              (same across tabs)
-            </span>
-          </p>
-          <InsightGrid
-            tickers={tickers}
-            fundamentals={fundamentals}
-            tickerColors={TICKER_COLORS}
-            layout="column"
-          />
-        </div>
+        {/* RIGHT: Combined Signals column — hidden in compact mode */}
+        {!compact && (
+          <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              💡 Fundamentals{" "}
+              <span className="normal-case text-slate-400 dark:text-slate-500">
+                (same across tabs)
+              </span>
+            </p>
+            <InsightGrid
+              tickers={tickers}
+              fundamentals={fundamentals}
+              tickerColors={TICKER_COLORS}
+              layout="column"
+            />
+          </div>
+        )}
       </div>
 
       {clampedPoints.length > 0 && (

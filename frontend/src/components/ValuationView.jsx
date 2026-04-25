@@ -12,12 +12,16 @@ import { useFundamentals } from "../hooks/useFundamentals";
 import { TICKER_COLORS } from "../lib/colors";
 import { InsightGrid } from "./InsightCard";
 
-export default function ValuationView({ tickers }) {
+export default function ValuationView({ tickers, compact = false }) {
   const { data, loading } = useFundamentals(tickers);
 
   if (loading) {
     return (
-      <div className="flex h-[380px] items-center justify-center">
+      <div
+        className={`flex ${
+          compact ? "h-[340px]" : "h-[380px]"
+        } items-center justify-center`}
+      >
         <span className="text-sm italic text-slate-400">
           Loading fundamentals…
         </span>
@@ -80,7 +84,10 @@ export default function ValuationView({ tickers }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-[1fr_320px] gap-4">
+      {/* Compact mode (Relations 2x2 grid cell) drops the InsightGrid right
+          column and renders only the chart. The how-to-read header strip
+          stays — it's tight and informative. */}
+      <div className={compact ? "" : "grid grid-cols-[1fr_320px] gap-4"}>
         {/* LEFT: P/E chart + missing-data note */}
         <div className="min-w-0">
         <div className="mb-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -96,7 +103,12 @@ export default function ValuationView({ tickers }) {
 
         <div
           className="caret-transparent select-none outline-none"
-          style={{ height: Math.max(200, peData.length * 48) }}
+          style={{
+            height: Math.max(
+              compact ? 160 : 200,
+              peData.length * (compact ? 36 : 48)
+            ),
+          }}
         >
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -244,21 +256,23 @@ export default function ValuationView({ tickers }) {
         )}
         </div>
 
-        {/* RIGHT: Combined Signals column */}
-        <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            💡 Fundamentals{" "}
-            <span className="normal-case text-slate-400 dark:text-slate-500">
-              (same across tabs)
-            </span>
-          </p>
-          <InsightGrid
-            tickers={tickers}
-            fundamentals={data}
-            tickerColors={TICKER_COLORS}
-            layout="column"
-          />
-        </div>
+        {/* RIGHT: Combined Signals column — hidden in compact mode */}
+        {!compact && (
+          <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              💡 Fundamentals{" "}
+              <span className="normal-case text-slate-400 dark:text-slate-500">
+                (same across tabs)
+              </span>
+            </p>
+            <InsightGrid
+              tickers={tickers}
+              fundamentals={data}
+              tickerColors={TICKER_COLORS}
+              layout="column"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

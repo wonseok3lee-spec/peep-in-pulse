@@ -70,7 +70,7 @@ function classifyGrowth(rate) {
   return { label: "Shrinking", color: "text-red-700 bg-red-50" };
 }
 
-function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
+function DivergingBarChart({ data, title, subtitle, emptyLabel, compact = false }) {
   if (!data || data.length === 0) {
     return (
       <div className="flex h-[160px] items-center justify-center text-sm italic text-slate-400">
@@ -100,7 +100,12 @@ function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
 
       <div
         className="caret-transparent select-none outline-none"
-        style={{ height: Math.max(200, data.length * 38 + 60) }}
+        style={{
+          height: Math.max(
+            compact ? 160 : 200,
+            data.length * (compact ? 30 : 38) + (compact ? 40 : 60)
+          ),
+        }}
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -241,7 +246,7 @@ function DivergingBarChart({ data, title, subtitle, emptyLabel }) {
   );
 }
 
-export function GrowthView({ tickers }) {
+export function GrowthView({ tickers, compact = false }) {
   const { data: fundamentals, loading } = useFundamentals(tickers);
 
   const revData = useMemo(() => {
@@ -280,7 +285,11 @@ export function GrowthView({ tickers }) {
 
   if (loading) {
     return (
-      <div className="flex h-[420px] items-center justify-center">
+      <div
+        className={`flex ${
+          compact ? "h-[340px]" : "h-[420px]"
+        } items-center justify-center`}
+      >
         <span className="text-sm italic text-slate-400">
           Loading growth data…
         </span>
@@ -292,62 +301,69 @@ export function GrowthView({ tickers }) {
   const missingEps = tickers.length - epsData.length;
 
   return (
-    <div className="grid grid-cols-[1fr_320px] gap-4">
-      {/* LEFT: how-to-read legend (top) + stacked bar charts + missing-data notes */}
+    // Compact mode (Relations 2x2 grid cell) drops both the right column
+    // (Growth Status + Fundamentals) and the how-to-read legend strip.
+    // The two diverging bar charts shrink via DivergingBarChart's compact
+    // prop, keeping the cell in a 2x2 size budget.
+    <div className={compact ? "" : "grid grid-cols-[1fr_320px] gap-4"}>
       <div className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/30">
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-            How to read
-          </span>
-          <span className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-            <span>
-              ≥+20%{" "}
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                Accelerating
+        {!compact && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/30">
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              How to read
+            </span>
+            <span className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <span>
+                ≥+20%{" "}
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  Accelerating
+                </span>
+              </span>
+              <span className="text-slate-300 dark:text-zinc-600">·</span>
+              <span>
+                +5~+20%{" "}
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  Growing
+                </span>
+              </span>
+              <span className="text-slate-300 dark:text-zinc-600">·</span>
+              <span>
+                ±5%{" "}
+                <span className="font-semibold text-slate-500 dark:text-slate-400">
+                  Flat
+                </span>
+              </span>
+              <span className="text-slate-300 dark:text-zinc-600">·</span>
+              <span>
+                −20~−5%{" "}
+                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                  Declining
+                </span>
+              </span>
+              <span className="text-slate-300 dark:text-zinc-600">·</span>
+              <span>
+                &lt;−20%{" "}
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  Shrinking
+                </span>
               </span>
             </span>
-            <span className="text-slate-300 dark:text-zinc-600">·</span>
-            <span>
-              +5~+20%{" "}
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                Growing
-              </span>
-            </span>
-            <span className="text-slate-300 dark:text-zinc-600">·</span>
-            <span>
-              ±5%{" "}
-              <span className="font-semibold text-slate-500 dark:text-slate-400">
-                Flat
-              </span>
-            </span>
-            <span className="text-slate-300 dark:text-zinc-600">·</span>
-            <span>
-              −20~−5%{" "}
-              <span className="font-semibold text-amber-600 dark:text-amber-400">
-                Declining
-              </span>
-            </span>
-            <span className="text-slate-300 dark:text-zinc-600">·</span>
-            <span>
-              &lt;−20%{" "}
-              <span className="font-semibold text-red-600 dark:text-red-400">
-                Shrinking
-              </span>
-            </span>
-          </span>
-        </div>
+          </div>
+        )}
 
         <DivergingBarChart
           data={revData}
           title="Revenue Growth (YoY)"
           subtitle="Latest quarter vs year-ago quarter"
           emptyLabel="No revenue growth data available"
+          compact={compact}
         />
         <DivergingBarChart
           data={epsData}
           title="Earnings Growth (YoY)"
           subtitle="Latest quarter vs year-ago quarter"
           emptyLabel="No earnings growth data available"
+          compact={compact}
         />
 
         {(missingRev > 0 || missingEps > 0) && (
@@ -363,29 +379,32 @@ export function GrowthView({ tickers }) {
       </div>
 
       {/* RIGHT: Growth Status table (qualitative labels moved out of the
-          chart to prevent edge clipping) + existing Fundamentals panel */}
-      <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-          Growth Status
-        </p>
-        <div className="mb-4 space-y-3 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/50">
-          <GrowthStatusList label="Revenue" rows={revData} />
-          <GrowthStatusList label="Earnings" rows={epsData} />
-        </div>
+          chart to prevent edge clipping) + existing Fundamentals panel.
+          Hidden in compact mode. */}
+      {!compact && (
+        <div className="min-w-0 border-l border-slate-100 pl-4 dark:border-zinc-700/50">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            Growth Status
+          </p>
+          <div className="mb-4 space-y-3 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2 dark:border-zinc-700/50 dark:bg-zinc-800/50">
+            <GrowthStatusList label="Revenue" rows={revData} />
+            <GrowthStatusList label="Earnings" rows={epsData} />
+          </div>
 
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-          💡 Fundamentals{" "}
-          <span className="normal-case text-slate-400 dark:text-slate-500">
-            (same across tabs)
-          </span>
-        </p>
-        <InsightGrid
-          tickers={tickers}
-          fundamentals={fundamentals}
-          tickerColors={TICKER_COLORS}
-          layout="column"
-        />
-      </div>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+            💡 Fundamentals{" "}
+            <span className="normal-case text-slate-400 dark:text-slate-500">
+              (same across tabs)
+            </span>
+          </p>
+          <InsightGrid
+            tickers={tickers}
+            fundamentals={fundamentals}
+            tickerColors={TICKER_COLORS}
+            layout="column"
+          />
+        </div>
+      )}
     </div>
   );
 }
