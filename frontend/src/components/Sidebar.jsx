@@ -37,7 +37,11 @@ export default function Sidebar({
   onRemoveTicker,
   onReorder,
 }) {
-  const isCompareMode = activeTab === "compare";
+  // Relations shares the compareSet ticker pool with Compare, so the
+  // sidebar's compare-mode visuals (highlighted chips for selected
+  // tickers) apply to both tabs.
+  const isCompareMode =
+    activeTab === "compare" || activeTab === "relations";
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [sparkPeriod, setSparkPeriod] = useState("1D");
 

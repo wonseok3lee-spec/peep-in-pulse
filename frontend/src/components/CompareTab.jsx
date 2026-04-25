@@ -384,7 +384,7 @@ export default function CompareTab({ tickers, onRemove }) {
 // refactor. Keep TickerChip + EmptyState here — they're still used by the
 // CompareTab header + the Valuation / Growth / Risk empty-state branches.)
 
-function TickerChip({ ticker, color, onRemove, disabled = false }) {
+export function TickerChip({ ticker, color, onRemove, disabled = false }) {
   // Compact translucent chip. Alpha "15"/"60" for bg/border.
   // Truncate the symbol to 4 chars and surface the exchange suffix as a
   // tiny inline badge so foreign tickers (047810.KS, 8306.T) stay readable.

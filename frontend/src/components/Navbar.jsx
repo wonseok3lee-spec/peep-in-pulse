@@ -7,6 +7,7 @@ import { MoreIcon } from "./icons";
 const TABS = [
   { key: "dashboard", label: "Dashboard" },
   { key: "compare", label: "Compare" },
+  { key: "relations", label: "Relations" },
   { key: "updates", label: "Updates" },
 ];
 

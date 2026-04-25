@@ -4,6 +4,7 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import CompareTab from "./components/CompareTab";
+import RelationsTab from "./components/RelationsTab";
 import UpdatesTab from "./components/UpdatesTab";
 import { MAX_COMPARE } from "./lib/colors";
 import { API_URL } from "./lib/api";
@@ -103,7 +104,10 @@ export default function App() {
 
   const handleTickerClick = useCallback(
     (sym) => {
-      if (activeTab === "compare") {
+      // Both Compare and Relations tabs share the compareSet. A sidebar
+      // click on either tab toggles ticker membership in that set; on
+      // any other tab it just selects a single ticker for the Dashboard.
+      if (activeTab === "compare" || activeTab === "relations") {
         // Toggle: already-selected → remove; not selected and under limit → add.
         // At limit with a non-selected ticker → silent no-op.
         setCompareSet((c) => {
@@ -202,6 +206,10 @@ export default function App() {
 
           {!loading && activeTab === "compare" && (
             <CompareTab tickers={compareSet} onRemove={removeFromCompare} />
+          )}
+
+          {!loading && activeTab === "relations" && (
+            <RelationsTab tickers={compareSet} onRemove={removeFromCompare} />
           )}
 
           {activeTab === "updates" && <UpdatesTab />}
