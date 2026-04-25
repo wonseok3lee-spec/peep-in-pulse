@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import CompareTab from "./components/CompareTab";
 import RelationsTab from "./components/RelationsTab";
+import RelationsHeader from "./components/RelationsHeader";
 import UpdatesTab from "./components/UpdatesTab";
 import { MAX_COMPARE } from "./lib/colors";
 import { API_URL } from "./lib/api";
@@ -51,6 +52,10 @@ export default function App() {
   const [selected, setSelected] = useState(DEFAULT_WATCHLIST[0] ?? null);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [compareSet, setCompareSet] = useState([]);
+  // Lifted from RelationsTab so RelationsHeader (rendered as a sibling of
+  // <main> for sticky depth reasons) can drive period changes that flow
+  // back into the grid views inside RelationsTab.
+  const [relationsPeriodKey, setRelationsPeriodKey] = useState("1Y");
   const [searchInput, setSearchInput] = useState("");
   const [toast, setToast] = useState(null);
 
@@ -176,45 +181,63 @@ export default function App() {
           onReorder={reorderWatchlist}
         />
 
-        <main className="min-w-0 flex-1 px-6 pt-4 pb-6">
-          {error && <ErrorBanner message={error.message} />}
-          {loading && <div className="text-sm text-slate-500">Loading pulse…</div>}
-
-          {!loading && activeTab === "dashboard" && (() => {
-            const items = effectiveSelected ? data?.[effectiveSelected] ?? [] : [];
-            // TEMPORARY DIAGNOSTIC — remove once we confirm whether NVDA/AMZN
-            // are missing from the pulse response (backend issue) or present
-            // but not flowing through (frontend issue).
-            // eslint-disable-next-line no-console
-            console.log("[Dashboard render]", {
-              selected,
-              effectiveSelected,
-              tickersInPulseData: Object.keys(data ?? {}),
-              itemsForSelected: items,
-              itemCount: items.length,
-              firstItemQuadrant: items[0]?.quadrant,
-            });
-            return (
-              <Dashboard
-                ticker={effectiveSelected}
-                items={items}
-                addTicker={addTicker}
-                watchlistFull={watchlistFull}
-              />
-            );
-          })()}
-
-          {!loading && activeTab === "compare" && (
-            <CompareTab tickers={compareSet} onRemove={removeFromCompare} />
-          )}
-
+        {/* Right column wrapper: holds the (optional) RelationsHeader and
+            <main> as flex-col siblings. RelationsHeader sticks here at
+            depth-1 from the flex container, matching Sidebar's structural
+            depth where sticky positioning works correctly. */}
+        <div className="flex min-w-0 flex-1 flex-col">
           {!loading && activeTab === "relations" && (
-            <RelationsTab tickers={compareSet} onRemove={removeFromCompare} />
+            <RelationsHeader
+              tickers={compareSet}
+              onRemove={removeFromCompare}
+              periodKey={relationsPeriodKey}
+              setPeriodKey={setRelationsPeriodKey}
+            />
           )}
 
-          {activeTab === "updates" && <UpdatesTab />}
+          <main className="flex-1 px-6 pt-4 pb-6">
+            {error && <ErrorBanner message={error.message} />}
+            {loading && <div className="text-sm text-slate-500">Loading pulse…</div>}
 
-        </main>
+            {!loading && activeTab === "dashboard" && (() => {
+              const items = effectiveSelected ? data?.[effectiveSelected] ?? [] : [];
+              // TEMPORARY DIAGNOSTIC — remove once we confirm whether NVDA/AMZN
+              // are missing from the pulse response (backend issue) or present
+              // but not flowing through (frontend issue).
+              // eslint-disable-next-line no-console
+              console.log("[Dashboard render]", {
+                selected,
+                effectiveSelected,
+                tickersInPulseData: Object.keys(data ?? {}),
+                itemsForSelected: items,
+                itemCount: items.length,
+                firstItemQuadrant: items[0]?.quadrant,
+              });
+              return (
+                <Dashboard
+                  ticker={effectiveSelected}
+                  items={items}
+                  addTicker={addTicker}
+                  watchlistFull={watchlistFull}
+                />
+              );
+            })()}
+
+            {!loading && activeTab === "compare" && (
+              <CompareTab tickers={compareSet} onRemove={removeFromCompare} />
+            )}
+
+            {!loading && activeTab === "relations" && (
+              <RelationsTab
+                tickers={compareSet}
+                periodKey={relationsPeriodKey}
+              />
+            )}
+
+            {activeTab === "updates" && <UpdatesTab />}
+
+          </main>
+        </div>
       </div>
 
       {toast && (
