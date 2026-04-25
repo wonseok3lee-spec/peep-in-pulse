@@ -807,27 +807,49 @@ function EndpointLabelsLayer({
   const vmax = Math.max(...firstValues);
   const allStartsEqual = raw.length > 1 && vmax - vmin <= 0.1;
 
-  const startItems = allStartsEqual
-    ? [
-        {
-          dataKey: "__shared_start__",
-          color: null, // null signals neutral text color
-          isBenchmark: false,
-          isShared: true,
-          value: firstValues.reduce((s, v) => s + v, 0) / firstValues.length,
-          y: raw.reduce((s, it) => s + it.firstY, 0) / raw.length,
-        },
-      ]
-    : resolveCollisions(
-        raw.map((it) => ({
-          dataKey: it.dataKey,
-          color: it.color,
-          isBenchmark: it.isBenchmark,
-          isShared: false,
-          value: it.firstValue,
-          y: it.firstY,
-        }))
-      );
+  let startItems;
+  if (allStartsEqual) {
+    startItems = [
+      {
+        dataKey: "__shared_start__",
+        color: null, // null signals neutral text color
+        isBenchmark: false,
+        isShared: true,
+        isBaseline: false,
+        value: firstValues.reduce((s, v) => s + v, 0) / firstValues.length,
+        y: raw.reduce((s, it) => s + it.firstY, 0) / raw.length,
+      },
+    ];
+  } else {
+    // Per-ticker start labels PLUS a synthetic baseline at y=yScale(0) in
+    // pct mode. Without it, per-ticker label halos mask the left Y-axis
+    // "0.0%" tick whenever a ticker starts near zero (e.g. 1D with a flat
+    // ticker like TSLA at +0.85% sits within the halo's 1.5 px vertical
+    // ring of y=0). The baseline label gives users an explicit grey
+    // "0.00%" marker independent of which ticker values land where.
+    // Skipped in price mode — "$0" isn't a meaningful baseline.
+    const items = raw.map((it) => ({
+      dataKey: it.dataKey,
+      color: it.color,
+      isBenchmark: it.isBenchmark,
+      isShared: false,
+      isBaseline: false,
+      value: it.firstValue,
+      y: it.firstY,
+    }));
+    if (viewMode === "pct") {
+      items.push({
+        dataKey: "__baseline__",
+        color: null,
+        isBenchmark: false,
+        isShared: false,
+        isBaseline: true,
+        value: 0,
+        y: yScale(0),
+      });
+    }
+    startItems = resolveCollisions(items);
+  }
   // Symmetric 12 px gap on the left — same reasoning as endLabelX.
   const startLabelX = plot.x - 12;
 
@@ -853,11 +875,13 @@ function EndpointLabelsLayer({
 
   // Per-item color resolution. When `color` is set, fill inline with that
   // color (per-ticker case). Otherwise fill="currentColor" and a wrapping
-  // <g> sets the inherited color via Tailwind text-* classes — used for
-  // the benchmark label (slate-400 grey) and the all-equal shared start
-  // label (slate-700 grey, slightly darker for emphasis).
+  // <g> sets the inherited color via Tailwind text-* classes:
+  //   - shared start (all-equal collapse) and baseline labels → slate-700
+  //     (slightly darker grey, signals "this is the reference line");
+  //   - benchmark line → slate-400 (matches its dashed stroke color).
   const groupClassFor = (it) => {
-    if (it.isShared) return "text-slate-700 dark:text-zinc-300";
+    if (it.isShared || it.isBaseline)
+      return "text-slate-700 dark:text-zinc-300";
     if (it.isBenchmark) return "text-slate-400 dark:text-slate-300";
     return undefined;
   };

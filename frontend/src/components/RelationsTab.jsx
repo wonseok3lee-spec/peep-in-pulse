@@ -36,8 +36,14 @@ export default function RelationsTab({ tickers, onRemove }) {
 
   return (
     <div className="w-full space-y-4">
-      {/* Header card: title + period selector + chip row */}
-      <div className="rounded-xl border border-slate-100 bg-white px-5 py-3 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
+      {/* Header card: title + period selector + chip row.
+          Sticky-pinned 65 px below the top (matching the navbar height)
+          so users can scroll the 2x2 grid while keeping period/ticker
+          controls in reach. 95% bg opacity + backdrop-blur-sm gives a
+          frosted glass that lets scrolled content show through faintly.
+          z-10 sits above grid cells (z-auto) and below the navbar
+          (z-20). */}
+      <div className="sticky top-[65px] z-10 rounded-xl border border-slate-100 bg-white/95 backdrop-blur-sm px-5 py-3 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900/95">
         {/* Row 1: title + period buttons */}
         <div className="flex flex-wrap items-center gap-4 border-b border-slate-200 pb-2 dark:border-zinc-700/50">
           <h2 className="shrink-0 text-xl font-semibold text-slate-900 dark:text-slate-100">
@@ -100,7 +106,7 @@ export default function RelationsTab({ tickers, onRemove }) {
           <Card label="% Return">
             <ReturnView tickers={usdTickers} periodKey={periodKey} compact />
           </Card>
-          <Card label="Valuation">
+          <Card label="Valuation · Snapshot">
             <ValuationView tickers={usdTickers} compact />
           </Card>
           <Card label="Growth">
