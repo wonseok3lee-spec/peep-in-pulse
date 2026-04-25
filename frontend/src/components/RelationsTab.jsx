@@ -44,7 +44,7 @@ export default function RelationsTab({ tickers, onRemove }) {
           scrolled chart content faintly show through, and the frosted-
           glass aesthetic wasn't worth the data-readability cost. z-10
           sits above grid cells (z-auto) and below the navbar (z-20). */}
-      <div className="sticky top-[65px] z-10 mb-4 rounded-xl border border-slate-100 bg-white px-5 py-3 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
+      <div className="sticky top-[65px] z-10 rounded-xl border border-slate-100 bg-white px-5 pt-3 pb-7 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-900">
         {/* Row 1: title + period buttons */}
         <div className="flex flex-wrap items-center gap-4 border-b border-slate-200 pb-2 dark:border-zinc-700/50">
           <h2 className="shrink-0 text-xl font-semibold text-slate-900 dark:text-slate-100">
